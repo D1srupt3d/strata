@@ -1,0 +1,9 @@
+# compiled binary (built via install.sh / go build)
+/strata
+*.exe
+
+.DS_Store
+# local Claude Code settings
+.claude/
+# internal design docs — not part of the published project
+/docs/
