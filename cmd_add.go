@@ -33,7 +33,21 @@ func newAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <file>",
 		Short: "Copy a file from $HOME into the repo (adopt a new file, or absorb local edits)",
-		Args:  cobra.ExactArgs(1),
+		Long: `One command for two jobs:
+
+  adopt   a file strata doesn't manage yet: it lands in base/ (or --layer)
+  absorb  edits you made directly in $HOME on a managed file — the drifted
+          content becomes the repo content and the file reads clean again
+
+Default target layer is whichever layer currently wins for that file,
+else base. Paths may be ~-relative, $HOME-relative, or absolute.
+
+If the file uses {{var}} substitution you'll get a warning: the copy you
+captured contains the expanded values — restore the {{tokens}} by hand.`,
+		Example: `  strata add .vimrc              adopt a new file into base/
+  strata add .zshrc              absorb your local .zshrc edits
+  strata add .Brewfile --layer mac`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

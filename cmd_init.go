@@ -18,7 +18,20 @@ func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [git-url]",
 		Short: "Set up this machine: clone (if URL given), choose role layers, write machine.toml, first apply",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `First-time setup. Writes ~/.config/strata/machine.toml (the only
+per-machine state) and runs the first apply.
+
+With a git URL, clones the repo first (default destination ~/dotfiles).
+The first apply never overwrites existing files it didn't write — it
+stops and lists them so you can 'strata add' the keepers and --force the
+rest.
+
+If your repo uses [vars], add per-machine overrides to machine.toml
+afterwards under a [vars] section.`,
+		Example: `  strata init git@github.com:you/dotfiles.git
+  strata init --repo ~/dotfiles --layers work
+  strata init --repo ~/dotfiles --layers ""      # no role layers`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := resolvePaths()
 			if err != nil {

@@ -13,6 +13,13 @@ func newDiffCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "diff",
 		Short: "Show what apply would change, including drift from edits made in $HOME",
+		Long: `Unified diff of every non-clean file: home/<file> (what's on disk now)
+against repo/<file> (what apply would write).
+
+Because it compares in both directions, edits you made directly in $HOME
+show up too — as lines apply would remove. No drift is ever silent.`,
+		Example: `  strata diff
+  strata diff | less`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

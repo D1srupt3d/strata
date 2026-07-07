@@ -79,8 +79,28 @@ func (a *appContext) plan() ([]engine.Item, error) {
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "strata",
-		Short:         "strata — layered dotfiles, sanely",
+		Use:   "strata",
+		Short: "strata — layered dotfiles, sanely",
+		Long: `strata manages your dotfiles from one git repo of real-named files.
+
+Layers stack per machine: base → OS (mac / linux / <distro> / windows) →
+role layers listed in ~/.config/strata/machine.toml. When two layers
+contain the same path, the later layer's whole file wins. Files opted in
+via dots.toml get {{var}} substitution; permission globs and post-apply
+hooks are also declared there.
+
+strata remembers what it last wrote, so it always knows the difference
+between "the repo changed", "you edited the file in $HOME", and "both" —
+and never silently overwrites your local edits.
+
+Running strata with no subcommand opens a read-only TUI of the whole
+picture: every file, which layer wins on every OS, and where each var,
+hook, and permission comes from.`,
+		Example: `  strata                  open the TUI
+  strata status           one line per file that needs attention
+  strata edit .zshrc      edit the source, see the diff, apply
+  strata apply            write pending changes into $HOME
+  strata init <git-url>   set up a brand-new machine`,
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,

@@ -14,7 +14,15 @@ func newEditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit <file>",
 		Short: "Open the winning layer's source in $EDITOR, then offer to apply",
-		Args:  cobra.ExactArgs(1),
+		Long: `Opens the source file in the layer that wins on this machine — you never
+have to remember which layer that is. When the editor exits, shows the
+diff and offers to apply immediately (edit-and-apply in one step).
+
+To edit a non-winning layer's copy (e.g. base/.gitconfig while work/
+overrides it), just open that file directly — it's a plain file.`,
+		Example: `  strata edit .zshrc
+  EDITOR=code strata edit .gitconfig`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {
