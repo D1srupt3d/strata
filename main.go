@@ -14,7 +14,9 @@ import (
 	"strata/internal/state"
 )
 
-var version = "0.1.0"
+// CalVer: YYYY.0M.PATCH — release date plus a counter for multiple
+// releases in the same month.
+var version = "2026.07.0"
 
 // paths resolves where strata looks for things, honoring test/env overrides.
 type paths struct {
