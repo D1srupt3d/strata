@@ -61,7 +61,18 @@ GitHub Actions workflow (test + vet + build for all three OSes) plus tagged
 releases with prebuilt binaries would mean setting up a new machine doesn't
 require a Go toolchain — download binary, `strata init <repo url>`, done.
 That's the whole pitch of a dotfiles manager, so this should probably happen
-before I buy my next laptop and not after.
+before I buy my next laptop and not after. GoReleaser gets me most of this
+for one config file — binaries, checksums, changelogs, and a Homebrew tap.
+
+**`strata upgrade` (self-updater).** Once releases exist: check the latest
+tag, download the right binary, verify it against checksums.txt (never
+skipping that — it's replacing an executable), and atomically swap it over
+os.Executable(), same temp-file-and-rename trick apply already uses. Two
+rules I've already decided: if the binary was installed by Homebrew, refuse
+and say `brew upgrade strata` instead of fighting brew's bookkeeping; and
+no silent background auto-update, ever — a tool that rewrites my shell
+config updates when I tell it to. Maybe a one-line "update available"
+notice in the TUI (cached, checked at most daily) so I actually find out.
 
 **Bootstrap the personal Mac for real.** `strata init` from a git URL has
 only ever run against test fixtures. The first real second-machine setup
