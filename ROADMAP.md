@@ -5,14 +5,15 @@ Versions are CalVer, `YYYY.0M.PATCH`, so 2026.07.0 is "shipped July 2026" and
 personal tool that I use every day, which means things get built when they
 annoy me enough.
 
-Some context: I built strata because chezmoi's workflow drove me up a wall.
-`dot_zshrc` filenames, `.tmpl` everywhere, Go template syntax for what was
-usually a one-line difference between my work and home machines, and about
-twenty commands where three would do. Strata is the tool I wished I had:
-one repo that looks like my home directory, layers that stack (base, then OS,
-then work/home role), and it never overwrites something I edited by hand.
-Everything on this roadmap gets judged against that: does it keep the daily
-workflow at three commands, or is it creeping back toward chezmoi?
+Some context: I moved here from another dotfiles manager — great, mature software that
+just never fit how I think. I wanted real filenames instead of `dot_zshrc`,
+layers instead of templates for what was usually a one-line difference
+between my work and home machines, and a command set small enough to hold in
+my head. Strata is the tool shaped like my brain: one repo that looks like my
+home directory, layers that stack (base, then OS, then work/home role), and
+it never overwrites something I edited by hand. Everything on this roadmap
+gets judged against that: does it keep the daily workflow at three commands,
+or is it creeping back toward the complexity I moved away from?
 
 ## done — 2026.07.0
 
@@ -28,8 +29,8 @@ The whole core, honestly:
 - the seven commands: init / apply / diff / status / edit / add / sync
 - a read-only TUI when you run bare `strata` — layers, files-per-OS matrix,
   var provenance, per-file drilldown
-- migrated my real dotfiles off chezmoi with byte-identical verification,
-  then uninstalled chezmoi. It's not an experiment anymore, it's the thing
+- migrated my real dotfiles over with byte-identical verification,
+  then retired the old manager. It's not an experiment anymore, it's the thing
   managing my shell config right now.
 
 ## next — 2026.07.1: deleting a file shouldn't be a trap
@@ -84,7 +85,7 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
   do today is pick a side. A three-way merge (or just launching `$EDITOR`
   on a merged view) would be kinder. Needs the state file to store content,
   not just hashes, so it's not free.
-- **directory permissions** — chezmoi made `~/.gnupg` itself 700; strata only
+- **directory permissions** — my old setup made `~/.gnupg` itself 700; strata only
   does files. Haven't hit a real problem from this yet but it's a known gap.
 - **hook globs and run-once** — `".config/nvim/**" = "restart nvim somehow"`,
   and a way to run machine-setup scripts exactly once per machine instead of
@@ -99,9 +100,10 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
 
 Writing these down so future me doesn't relitigate them:
 
-- **a template language.** The moment strata has `{{ if }}`, I've rebuilt
-  chezmoi and should apologize. Layers cover whole-file differences, vars
-  cover one-line differences, and I have not hit a third case in real use.
+- **a template language.** Other managers do templates extremely well —
+  if I ever want them back, I know where to find them. Layers cover
+  whole-file differences, vars cover one-line differences, and I have not
+  hit a third case in real use.
 - **symlink mode.** Symlinks can't express "base plus work bits", Windows
   hates them, and half my tools misbehave with symlinked config.
 - **partial-file merging.** "Later layer wins the whole file" is the reason

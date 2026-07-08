@@ -8,7 +8,6 @@ strata is a cross-platform dotfiles manager (macOS, Linux, Windows) built around
 2. **Machine differences are layers, not templates.** A `work/` folder overrides a `base/` folder. No template language to learn for the common case.
 3. **You can't lose local edits.** strata remembers what it wrote, so it always knows the difference between "the repo changed", "you edited the file", and "both" — and refuses to clobber your work.
 
-It was built as a replacement for [chezmoi](https://www.chezmoi.io/) by someone tired of mangled filenames, `.tmpl` files, Go template syntax, and the `edit`/`apply`/`re-add` dance. strata has 7 commands; you'll use 3 most days.
 
 ```
 strata edit .zshrc     # open the real source file, see the diff, apply — one step
@@ -31,7 +30,6 @@ And running **bare `strata`** opens a read-only [terminal UI](#the-tui-bare-stra
 - [How the safety model works](#how-the-safety-model-works)
 - [Environment variables](#environment-variables)
 - [Building and testing](#building-and-testing)
-- [Migrating from chezmoi](#migrating-from-chezmoi)
 - [Security note](#security-note)
 - [What strata deliberately doesn't do (yet)](#what-strata-deliberately-doesnt-do-yet)
 
@@ -286,7 +284,7 @@ If the file isn't managed yet: `error: .foorc is not managed (try: strata add .f
 Copies a file **from `$HOME` into the repo**. One command for two jobs:
 
 - **Adopt** a file strata doesn't manage yet: `strata add .vimrc` → `base/.vimrc`
-- **Absorb** edits you made directly in `$HOME` on a managed file (chezmoi's `re-add`): the drifted content becomes the repo content, and the file reads `clean` again
+- **Absorb** edits you made directly in `$HOME` on a managed file: the drifted content becomes the repo content, and the file reads `clean` again
 
 ```
 $ strata add .zshrc
@@ -344,8 +342,7 @@ name  = "Your Name"
 
 # ── Hooks ───────────────────────────────────────────────────────────
 # After a successful apply, if the keyed file was among those written,
-# run the command (sh -c on Unix, cmd /C on Windows). Replaces chezmoi's
-# run_onchange_ scripts.
+# run the command (sh -c on Unix, cmd /C on Windows).
 [hooks]
 ".Brewfile" = "brew bundle --file=~/.Brewfile"
 ```
@@ -525,28 +522,6 @@ internal/tui/            # read-only TUI (Bubble Tea + Lip Gloss); design: docs/
 ```
 
 The engine takes `GOOS` and the os-release content as *parameters*, so tests exercise mac/arch/windows behavior on any platform.
-
----
-
-## Migrating from chezmoi
-
-Your chezmoi source lives at `~/.local/share/chezmoi`. Translate it once:
-
-| chezmoi | strata |
-|---|---|
-| `dot_zshrc` | `base/.zshrc` (real name, no mangling) |
-| `dot_config/nvim/init.lua` | `base/.config/nvim/init.lua` |
-| `dot_gitconfig.tmpl` with `{{ .email }}` | `base/.gitconfig` with `{{email}}` + `substitute = [".gitconfig"]` + vars in `dots.toml` / `machine.toml` |
-| `{{ if eq .chezmoi.os "darwin" }}…{{ end }}` | put the mac-only content in `mac/` |
-| big per-machine template branches | a full copy of the file in `work/` / `home/` (whole-file override) |
-| `run_onchange_brew-bundle.sh.tmpl` | `[hooks] ".Brewfile" = "brew bundle --file=~/.Brewfile"` |
-| `private_` prefix (0600 files) | `[permissions] ".ssh/**" = "600"` |
-| `chezmoi init <url>` on a new machine | `strata init <url>` |
-| `chezmoi diff` / `apply` / `edit` | same names, minus the ceremony |
-| `chezmoi re-add` | `strata add` (same command as adopting) |
-| `chezmoi update` | `strata sync` |
-
-Suggested order: build the new repo folder-by-folder while chezmoi still manages your home, then run `strata apply --dry-run` and `strata status` — anything `clean` migrated perfectly; anything `unmanaged` differs and deserves a look before you `--force` or `add`.
 
 ---
 
