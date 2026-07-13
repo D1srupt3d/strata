@@ -55,7 +55,10 @@ Safety rules:
 			for _, rel := range res.Written {
 				fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", rel)
 			}
-			if len(res.Written) == 0 {
+			for _, rel := range res.Deleted {
+				fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", rel)
+			}
+			if len(res.Written) == 0 && len(res.Deleted) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "nothing to do")
 			}
 			return engine.RunHooks(app.Cfg.Hooks, res.Written, cmd.OutOrStdout())

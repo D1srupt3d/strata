@@ -27,10 +27,11 @@ const (
 	Drifted   // home edited, repo unchanged
 	Conflict  // both changed
 	Unmanaged // existing file strata never wrote, and it differs
+	Removed   // strata wrote it before, but no layer provides it anymore
 )
 
 func (s FileStatus) String() string {
-	return [...]string{"clean", "create", "update", "drifted", "conflict", "unmanaged"}[s]
+	return [...]string{"clean", "create", "update", "drifted", "conflict", "unmanaged", "removed"}[s]
 }
 
 type Item struct {
@@ -111,21 +112,49 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 		}
 		items = append(items, it)
 	}
+
+	// Files strata previously wrote that no longer exist in any layer.
+	var gone []string
+	for rel := range st.Files {
+		if _, ok := sources[rel]; !ok {
+			gone = append(gone, rel)
+		}
+	}
+	sort.Strings(gone)
+	for _, rel := range gone {
+		it := Item{Rel: rel, Status: Removed}
+		current, err := os.ReadFile(filepath.Join(homeDir, filepath.FromSlash(rel)))
+		switch {
+		case err == nil:
+			it.Current = current
+		case !os.IsNotExist(err):
+			return nil, err
+		}
+		items = append(items, it)
+	}
 	return items, nil
 }
 
 type ApplyResult struct {
 	Written []string // rels actually written
-	Blocked []Item   // would-be writes refused (drift/conflict/unmanaged)
+	Deleted []string // rels deleted from $HOME (file left every layer)
+	Blocked []Item   // changes refused (drift/conflict/unmanaged/edited-removal)
 }
 
-// Apply writes Create/Update items. If any Drifted/Conflict/Unmanaged items
-// exist and force is false, it writes NOTHING and returns an error naming
-// them — resolve with 'strata add <file>' (keep home) or --force (keep repo).
+// removedEdited reports whether a Removed item's $HOME copy was hand-edited
+// after the last apply — deleting it would destroy those edits.
+func removedEdited(it Item, st *state.State) bool {
+	return it.Status == Removed && it.Current != nil && fsutil.Hash(it.Current) != st.Files[it.Rel]
+}
+
+// Apply writes Create/Update items and deletes Removed ones. If any
+// Drifted/Conflict/Unmanaged items exist — or a Removed file was locally
+// edited — and force is false, it changes NOTHING and returns an error;
+// resolve with 'strata add <file>' (keep home) or --force (keep repo).
 func Apply(items []Item, homeDir string, st *state.State, force bool) (ApplyResult, error) {
 	var res ApplyResult
 	for _, it := range items {
-		if it.Status == Drifted || it.Status == Conflict || it.Status == Unmanaged {
+		if it.Status == Drifted || it.Status == Conflict || it.Status == Unmanaged || removedEdited(it, st) {
 			res.Blocked = append(res.Blocked, it)
 		}
 	}
@@ -137,6 +166,16 @@ func Apply(items []Item, homeDir string, st *state.State, force bool) (ApplyResu
 		return res, fmt.Errorf("refusing to overwrite local changes:%s\nkeep your version with 'strata add <file>', or overwrite with 'strata apply --force'", names)
 	}
 	for _, it := range items {
+		if it.Status == Removed {
+			if it.Current != nil {
+				if err := os.Remove(filepath.Join(homeDir, filepath.FromSlash(it.Rel))); err != nil && !os.IsNotExist(err) {
+					return res, fmt.Errorf("removing %s: %w", it.Rel, err)
+				}
+				res.Deleted = append(res.Deleted, it.Rel)
+			}
+			delete(st.Files, it.Rel) // stale entries clean up even if already gone
+			continue
+		}
 		write := it.Status == Create || it.Status == Update ||
 			(force && (it.Status == Drifted || it.Status == Conflict || it.Status == Unmanaged))
 		if write {

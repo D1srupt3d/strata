@@ -144,6 +144,7 @@ Everything strata tells you is in terms of six statuses per managed file:
 | `drifted` | You edited the home copy; repo unchanged | **Refuses** (keep with `add`, or `--force`) |
 | `conflict` | Both the repo *and* your home copy changed | **Refuses** (inspect with `diff`, then `add` or `--force`) |
 | `unmanaged` | File exists but strata never wrote it (typical on first apply) | **Refuses** (adopt with `add`, or `--force`) |
+| `removed` | strata wrote it before, but no layer provides it anymore | Deletes it from home (**refuses** if you edited it since the last apply, unless `--force`) |
 
 ---
 
@@ -309,6 +310,22 @@ strata init --repo ~/dotfiles --layers ""     # no role layers
 ### `strata sync`
 
 `git pull --ff-only` in the repo, then `apply`. The "give me my other machine's latest changes" command.
+
+### `strata rm <file>`
+
+Deletes the file from its **winning layer**, then applies. If no other layer provides the file, apply removes it from `$HOME` too (with the usual refuse-if-you-edited-it safety). If an earlier layer still provides it, that layer wins again and the home copy is rewritten:
+
+```
+$ strata rm .tmux.conf        # sole provider → gone from repo AND $HOME
+deleted ~/dotfiles/base/.tmux.conf
+removed .tmux.conf
+
+$ strata rm .gitconfig        # work/ override removed → base/ wins again
+deleted ~/dotfiles/work/.gitconfig
+wrote .gitconfig
+```
+
+Deleting a layer file by hand (or via `git rm` + `sync` on another machine) works identically — `status` shows the orphan as `removed` and the next `apply` cleans it up.
 
 ---
 
@@ -538,7 +555,6 @@ strata never reads or writes anything outside `$HOME` (targets), your repo (sour
 Kept out of v1 to keep the model small:
 
 - **Secrets/encryption** — keep private keys out of the repo (or encrypt them with a dedicated tool)
-- **File removal tracking** — deleting a file from the repo doesn't delete it from `$HOME`
 - **`run_once` scripts, symlink mode, partial file merging, non-`$HOME` targets** (e.g. `/etc`)
 
 All addable later without changing the core model.

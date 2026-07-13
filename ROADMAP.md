@@ -33,26 +33,17 @@ The whole core, honestly:
   then retired the old manager. It's not an experiment anymore, it's the thing
   managing my shell config right now.
 
-## next — 2026.07.1: deleting a file shouldn't be a trap
+## done — 2026.07.1: deleting a file isn't a trap anymore
 
-Right now if I delete a file from the repo, strata just forgets about it and
-the copy in `$HOME` lives on forever, unmanaged. That's the last piece of
-"state I have to remember in my head", which is exactly what this tool exists
-to kill.
-
-Plan, roughly:
-
-- state already knows every file strata has written. If a tracked file
-  disappears from all layers, `status` shows it as `removed` and `apply`
-  deletes it from `$HOME`
-- same safety rules as overwrites: if I edited the file after the last
-  apply, refuse and make me choose. Deleting drifted files silently would
-  be worse than the current behavior
-- probably a `strata rm .tmux.conf` convenience that deletes from the
-  winning layer and applies in one step
-- open question: what happens when a file leaves the work layer but still
-  exists in base? Answer should fall out of the model (base wins again,
-  file gets rewritten) but needs a test to prove it
+Used to be that deleting a file from the repo just orphaned the copy in
+`$HOME` forever. Now: if a file strata has written disappears from every
+layer, `status` shows it as `removed` and `apply` deletes it — with the
+same safety rules as overwrites (edited the file since last apply? it
+refuses and makes me choose). Stale state entries clean themselves up,
+and `strata rm <file>` deletes from the winning layer and applies in one
+step. The open question from the plan — file leaves the work layer but
+still exists in base — resolved exactly how the model predicts (base wins
+again, file gets rewritten), and there's a test pinning that down.
 
 ## soon-ish
 

@@ -165,3 +165,74 @@ func TestRunHooks(t *testing.T) {
 		t.Fatal("hook did not run")
 	}
 }
+
+func TestRemoval(t *testing.T) {
+	cfg, home := fixture(t)
+	st := state.State{Files: map[string]string{}}
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// File leaves the work layer but still exists in base → base wins again:
+	// a plain update, NOT a removal.
+	os.Remove(filepath.Join(cfg.RepoDir, "work", ".gitconfig"))
+	if s := plan(t, cfg, home, st)[".gitconfig"].Status; s != Update {
+		t.Fatalf(".gitconfig want Update, got %v", s)
+	}
+
+	// Sole provider deleted from the repo → Removed; apply deletes from home
+	// and drops the state entry.
+	os.Remove(filepath.Join(cfg.RepoDir, "base", ".zshrc"))
+	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Removed {
+		t.Fatalf(".zshrc want Removed, got %v", s)
+	}
+	items, _ = Plan(cfg, home, st, "darwin", "")
+	res, err := Apply(items, home, &st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Deleted) != 1 || res.Deleted[0] != ".zshrc" {
+		t.Fatalf("Deleted = %v", res.Deleted)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshrc")); !os.IsNotExist(err) {
+		t.Fatal(".zshrc should be gone from home")
+	}
+	if _, ok := st.Files[".zshrc"]; ok {
+		t.Fatal("state entry should be gone")
+	}
+
+	// Removed from repo but locally edited → refuse; --force deletes.
+	os.WriteFile(filepath.Join(cfg.RepoDir, "base", ".tmux.conf"), []byte("set -g mouse on\n"), 0o644)
+	items, _ = Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, false); err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(filepath.Join(cfg.RepoDir, "base", ".tmux.conf"))
+	os.WriteFile(filepath.Join(home, ".tmux.conf"), []byte("my edit\n"), 0o644)
+	items, _ = Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, false); err == nil {
+		t.Fatal("expected refusal: removed file was locally edited")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".tmux.conf")); err != nil {
+		t.Fatal("blocked apply must not delete")
+	}
+	items, _ = Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".tmux.conf")); !os.IsNotExist(err) {
+		t.Fatal("--force should delete")
+	}
+
+	// Stale state entry (file gone from home AND layers) cleans up silently.
+	st.Files[".ghost"] = "deadbeef"
+	items, _ = Plan(cfg, home, st, "darwin", "")
+	res, err = Apply(items, home, &st, false)
+	if err != nil || len(res.Deleted) != 0 {
+		t.Fatalf("ghost cleanup: %v %v", err, res.Deleted)
+	}
+	if _, ok := st.Files[".ghost"]; ok {
+		t.Fatal("stale state entry should be dropped")
+	}
+}

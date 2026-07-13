@@ -16,7 +16,7 @@ import (
 
 // CalVer: YYYY.0M.PATCH — release date plus a counter for multiple
 // releases in the same month.
-var version = "2026.07.0"
+var version = "2026.07.1"
 
 // paths resolves where strata looks for things, honoring test/env overrides.
 type paths struct {
@@ -108,7 +108,7 @@ hook, and permission comes from.`,
 		RunE:          runTUI, // bare `strata` opens the read-only TUI
 	}
 	root.AddCommand(newStatusCmd(), newDiffCmd(), newApplyCmd(), newAddCmd(),
-		newEditCmd(), newInitCmd(), newSyncCmd())
+		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd())
 	return root
 }
 

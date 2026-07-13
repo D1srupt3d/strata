@@ -45,6 +45,8 @@ func statusGlyph(st engine.FileStatus) (string, lipgloss.Color) {
 		return "~ drifted", cYellow
 	case engine.Conflict:
 		return "✖ conflict", cRed
+	case engine.Removed:
+		return "✕ removed", cRed
 	default:
 		return "? unmanaged", cMuted
 	}
