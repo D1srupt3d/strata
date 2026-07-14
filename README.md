@@ -51,6 +51,8 @@ Manual alternative: `go build -o strata .` and move the binary anywhere on your 
 
 Cross-compiles with plain Go: `GOOS=linux go build`, `GOOS=windows go build`, etc.
 
+To reverse all of this later, run [`strata uninstall`](#strata-uninstall) — it removes the binary, config, state, and the PATH line, leaving your actual dotfiles alone.
+
 ### Starting from scratch
 
 ```sh
@@ -327,6 +329,34 @@ wrote .gitconfig
 
 Deleting a layer file by hand (or via `git rm` + `sync` on another machine) works identically — `status` shows the orphan as `removed` and the next `apply` cleans it up.
 
+### `strata uninstall`
+
+Removes strata itself — the binary, `~/.config/strata/machine.toml`, `~/.local/state/strata/state.json`, and the `export PATH` line `install.sh` added to your shell rc. It **does not** touch the dotfiles strata copied into `$HOME` (those are ordinary files now) or your dotfiles repo — delete those yourself if you want them gone.
+
+```
+$ strata uninstall
+This will remove:
+  ~/.local/state/strata/state.json
+  ~/.config/strata/machine.toml
+  ~/.local/bin/strata
+  PATH line in ~/.zshrc
+
+Your dotfiles in $HOME and your dotfiles repo are left untouched.
+
+Remove these? [y/N]: y
+removed ~/.local/state/strata/state.json
+removed ~/.config/strata/machine.toml
+removed ~/.local/bin/strata
+cleaned PATH line from ~/.zshrc
+
+strata uninstalled. Open a new terminal (or run 'hash -r') to clear the cached command.
+```
+
+- `--dry-run` / `-n` — list what would be removed, remove nothing
+- `--yes` / `-y` — skip the confirmation prompt
+
+Only the files that actually exist are listed and removed, so it's safe to re-run (a second run prints `nothing to remove`). The binary is deleted last, so if a step fails partway you still have a working `strata` to retry with.
+
 ---
 
 ## Configuration reference
@@ -506,6 +536,7 @@ Mainly for testing and scripting — normally you never set these:
 | `STRATA_HOME` | Target "home" directory | your real home dir |
 | `STRATA_CONFIG` | Path to `machine.toml` | `~/.config/strata/machine.toml` |
 | `STRATA_STATE` | Path to the state file | `~/.local/state/strata/state.json` |
+| `STRATA_BIN` | Path to the strata binary `uninstall` deletes | the running binary (`os.Executable()`) |
 | `EDITOR` | Editor used by `strata edit` | `vi` |
 
 These make it trivial to point strata at a sandbox and try anything risk-free:

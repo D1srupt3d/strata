@@ -23,6 +23,7 @@ type paths struct {
 	Home    string // target home dir (STRATA_HOME overrides)
 	Machine string // machine.toml (STRATA_CONFIG overrides)
 	State   string // state.json (STRATA_STATE overrides)
+	Bin     string // the strata binary itself (STRATA_BIN overrides)
 }
 
 func resolvePaths() (paths, error) {
@@ -42,6 +43,12 @@ func resolvePaths() (paths, error) {
 	p.State = os.Getenv("STRATA_STATE")
 	if p.State == "" {
 		p.State = filepath.Join(home, ".local", "state", "strata", "state.json")
+	}
+	p.Bin = os.Getenv("STRATA_BIN")
+	if p.Bin == "" {
+		if exe, err := os.Executable(); err == nil {
+			p.Bin = exe
+		}
 	}
 	return p, nil
 }
@@ -108,7 +115,7 @@ hook, and permission comes from.`,
 		RunE:          runTUI, // bare `strata` opens the read-only TUI
 	}
 	root.AddCommand(newStatusCmd(), newDiffCmd(), newApplyCmd(), newAddCmd(),
-		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd())
+		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd(), newUninstallCmd())
 	return root
 }
 
