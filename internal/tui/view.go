@@ -12,70 +12,7 @@ import (
 	"strata/internal/engine"
 )
 
-// Design tokens from docs/design/tui (handoff README).
-var (
-	cBright   = lipgloss.Color("#E8E8EC")
-	cBody     = lipgloss.Color("#D4D4D8")
-	cMuted    = lipgloss.Color("#6E6E7A")
-	cSoft     = lipgloss.Color("#A0A0AC")
-	cFaint    = lipgloss.Color("#4A4A54")
-	cDisabled = lipgloss.Color("#3A3A44")
-	cCyan     = lipgloss.Color("#56C8D8")
-
-	cBgChrome     = lipgloss.Color("#16161C")
-	cBgModal      = lipgloss.Color("#14141A")
-	cBgModalTitle = lipgloss.Color("#191921")
-	cBgSel        = lipgloss.Color("#2A3550")
-
-	cGreen  = lipgloss.Color("#59B87A")
-	cYellow = lipgloss.Color("#D8B356")
-	cBlue   = lipgloss.Color("#6DA8E8")
-	cRed    = lipgloss.Color("#D86A6A")
-
-	rolePalette = []color.Color{
-		lipgloss.Color("#CF8FD6"), lipgloss.Color("#D68FA8"),
-		lipgloss.Color("#B08FD6"), lipgloss.Color("#D6A08F"),
-	}
-)
-
-func statusGlyph(st engine.FileStatus) (string, color.Color) {
-	switch st {
-	case engine.Clean:
-		return "● clean", cGreen
-	case engine.Create:
-		return "✚ create", cGreen
-	case engine.Update:
-		return "↑ update", cBlue
-	case engine.Drifted:
-		return "~ drifted", cYellow
-	case engine.Conflict:
-		return "✖ conflict", cRed
-	case engine.Removed:
-		return "✕ removed", cRed
-	default:
-		return "? unmanaged", cMuted
-	}
-}
-
-func (s *Snapshot) layerColor(name string) (color.Color, color.Color) {
-	switch s.Kind[name] {
-	case "base":
-		return cSoft, cDisabled
-	case "distro":
-		return lipgloss.Color("#7FC76A"), lipgloss.Color("#33502D")
-	case "role":
-		return rolePalette[s.RoleIndex[name]%len(rolePalette)], lipgloss.Color("#5A3A5E")
-	}
-	switch name {
-	case "mac":
-		return cCyan, lipgloss.Color("#2E5A63")
-	case "linux":
-		return lipgloss.Color("#7FC76A"), lipgloss.Color("#33502D")
-	case "windows":
-		return cBlue, lipgloss.Color("#2D3F5C")
-	}
-	return cSoft, cDisabled
-}
+// Colors and shared styles live in theme.go.
 
 // ── text helpers ─────────────────────────────────────────────────────
 
@@ -151,9 +88,9 @@ func (m Model) headerView() string {
 	st := func(c color.Color, b bool) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(c).Background(cBgChrome).Bold(b)
 	}
-	left := " " + st(cBright, true).Render("strata") + "  " + st(cMuted, false).Render(m.snap.RepoPath)
+	left := " " + brandChip() + " " + st(cMuted, false).Render(m.snap.RepoPath)
 	right := st(cMuted, false).Render("machine: ") + st(cBright, false).Render(m.snap.MachineName) +
-		st(cMuted, false).Render(" · layers: ") + st(cSoft, false).Render(m.snap.ActiveText) + " "
+		st(cMuted, false).Render(" · layers: ") + st(cLavender, false).Render(m.snap.ActiveText) + " "
 	return chromeLine(m.w, left, right)
 }
 
@@ -162,12 +99,12 @@ func (m Model) tabsView() string {
 	var parts []string
 	for i, l := range labels {
 		if i == m.tab {
-			parts = append(parts, lipgloss.NewStyle().Foreground(cBright).Underline(true).Render(l))
+			parts = append(parts, lipgloss.NewStyle().Background(cBgSel).Foreground(cLavender).Bold(true).Render(" "+l+" "))
 		} else {
-			parts = append(parts, lipgloss.NewStyle().Foreground(cMuted).Render(l))
+			parts = append(parts, lipgloss.NewStyle().Foreground(cMuted).Render(" "+l+" "))
 		}
 	}
-	left := " " + strings.Join(parts, "  ")
+	left := " " + strings.Join(parts, " ")
 	right := lipgloss.NewStyle().Foreground(cFaint).Render("read-only · later layer wins whole file") + " "
 	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
@@ -177,8 +114,10 @@ func (m Model) tabsView() string {
 }
 
 func (m Model) footerView() string {
-	f := lipgloss.NewStyle().Foreground(cFaint).Background(cBgChrome)
-	return chromeLine(m.w, " "+f.Render("←→ or 1-3 tabs · ↑↓ move · enter detail · esc close · q quit"), "")
+	hints := keyHints(
+		[2]string{"←→ 1-3", "tabs"}, [2]string{"↑↓", "move"},
+		[2]string{"enter", "detail"}, [2]string{"esc", "close"}, [2]string{"q", "quit"})
+	return chromeLine(m.w, " "+hints, "")
 }
 
 // ── Layers tab ───────────────────────────────────────────────────────
@@ -198,10 +137,10 @@ func (m Model) layersView() string {
 		fg, border := s.layerColor(ly.Name)
 		title := ly.Name
 		if ly.Active {
-			title += " ✓"
+			title += " " + lipgloss.NewStyle().Foreground(cAccent).Render("✓")
 		}
 		head := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).BorderForeground(border).
+			Border(lipgloss.RoundedBorder()).BorderForeground(border).
 			Foreground(fg).Align(lipgloss.Center).Width(colW - 3).Render(title)
 		var lines []string
 		for _, f := range ly.Files {
@@ -214,7 +153,7 @@ func (m Model) layersView() string {
 					lipgloss.NewStyle().Foreground(cFaint).Strikethrough(true).Render(trunc(f.Short, colW-2)),
 					lipgloss.NewStyle().Foreground(cFaint).Render("  ↷ "+f.OverriddenBy))
 			} else {
-				lines = append(lines, lipgloss.NewStyle().Foreground(cBody).Render(trunc(label, colW-2)))
+				lines = append(lines, badgeLabel(trunc(label, colW-2), f.Badge, lipgloss.NewStyle().Foreground(cBody)))
 			}
 		}
 		block := head + "\n" + strings.Join(lines, "\n")
@@ -255,7 +194,8 @@ func (m Model) filesView(bodyH int) string {
 	s := m.snap
 	wide := m.w >= 92
 	statusW, winsW, osW := 13, 11, 9
-	fileW := m.w - 3 - winsW - statusW - 2
+	inner := m.w - 4 // rounded border + one padding column per side
+	fileW := inner - 1 - winsW - statusW
 	if wide {
 		fileW -= 3 * osW
 	}
@@ -268,9 +208,9 @@ func (m Model) filesView(bodyH int) string {
 		head += padr("MAC", osW) + padr("LINUX", osW) + padr("WIN", osW)
 	}
 	head += padl("STATUS", statusW)
-	out := []string{lipgloss.NewStyle().Foreground(cMuted).Render(head)}
+	rows := []string{lipgloss.NewStyle().Foreground(cMuted).Render(head)}
 
-	rowsArea := bodyH - 2
+	rowsArea := bodyH - 4 // panel border (2) + column header + legend
 	if rowsArea < 1 {
 		rowsArea = 1
 	}
@@ -286,12 +226,18 @@ func (m Model) filesView(bodyH int) string {
 	for i := off; i < end; i++ {
 		r := s.Rows[i]
 		selRow := i == m.sel
-		cell := func(text string, fg color.Color) string {
+		rowSt := func(fg color.Color) lipgloss.Style {
 			st := lipgloss.NewStyle().Foreground(fg)
 			if selRow {
 				st = st.Background(cBgSel)
 			}
-			return st.Render(text)
+			return st
+		}
+		cell := func(text string, fg color.Color) string { return rowSt(fg).Render(text) }
+
+		bar := " "
+		if selRow {
+			bar = rowSt(cAccent).Render("▎")
 		}
 		fileFg := cBright
 		if selRow {
@@ -301,7 +247,7 @@ func (m Model) filesView(bodyH int) string {
 		if r.Badge != "" {
 			name += " " + r.Badge
 		}
-		line := cell(" ", cBody) + cell(padr(name, fileW), fileFg)
+		line := bar + badgeLabel(padr(name, fileW), r.Badge, rowSt(fileFg))
 
 		if r.Winner != "" {
 			wc, _ := s.layerColor(r.Winner)
@@ -319,23 +265,29 @@ func (m Model) filesView(bodyH int) string {
 			}
 		}
 		if r.Resolved {
-			g, c := statusGlyph(r.Status)
-			line += cell(padl(g, statusW), c)
+			g, fg, bg := statusGlyph(r.Status)
+			b := lipgloss.NewStyle().Foreground(fg).Background(bg).Render(" " + g + " ")
+			pad := statusW - lipgloss.Width(g) - 2
+			if pad < 0 {
+				pad = 0
+			}
+			line += cell(strings.Repeat(" ", pad), cBody) + b
 		} else {
 			line += cell(padl("—", statusW), cDisabled)
 		}
-		out = append(out, line)
+		rows = append(rows, line)
 	}
 
-	for len(out) < bodyH-1 {
-		out = append(out, "")
+	for len(rows) < rowsArea+1 {
+		rows = append(rows, "")
 	}
+	table := panel().Padding(0, 1).Render(strings.Join(rows, "\n"))
+
 	legend := chromeLine(m.w,
 		" "+lipgloss.NewStyle().Background(cBgChrome).Foreground(cMuted).Render(
 			"● clean  ~ drifted  ↑ update  ✖ conflict  ✚ create  ? unmanaged"),
 		lipgloss.NewStyle().Background(cBgChrome).Foreground(cFaint).Render("{{ }} substituted · ⚙ hook · 600 perms")+" ")
-	out = append(out, legend)
-	return strings.Join(out, "\n")
+	return table + "\n" + legend
 }
 
 // ── Vars & Rules tab ─────────────────────────────────────────────────
@@ -365,7 +317,7 @@ func (m Model) varsView() string {
 		out = append(out, lipgloss.NewStyle().Foreground(cFaint).Render(" no variables defined"))
 	}
 
-	out = append(out, "", " "+lipgloss.NewStyle().Foreground(cMuted).Render("USED BY")+
+	out = append(out, "", " "+sectionLabel("USED BY")+
 		lipgloss.NewStyle().Foreground(cFaint).Render(" files listed in dots.toml [substitute]"))
 	if len(s.UsedBy) == 0 {
 		out = append(out, lipgloss.NewStyle().Foreground(cFaint).Render(" none"))
@@ -377,7 +329,7 @@ func (m Model) varsView() string {
 		out = append(out, " "+lipgloss.NewStyle().Foreground(cBody).Render(strings.Join(parts, " · ")))
 	}
 
-	out = append(out, "", " "+lipgloss.NewStyle().Foreground(cMuted).Render("HOOKS")+
+	out = append(out, "", " "+sectionLabel("HOOKS")+
 		lipgloss.NewStyle().Foreground(cFaint).Render(" run after apply, only if that file changed"))
 	if len(s.Hooks) == 0 {
 		out = append(out, lipgloss.NewStyle().Foreground(cFaint).Render(" none"))
@@ -386,7 +338,7 @@ func (m Model) varsView() string {
 		out = append(out, " "+lipgloss.NewStyle().Foreground(cBody).Render(h[0]+" → "+h[1]))
 	}
 
-	out = append(out, "", " "+lipgloss.NewStyle().Foreground(cMuted).Render("PERMS")+
+	out = append(out, "", " "+sectionLabel("PERMS")+
 		lipgloss.NewStyle().Foreground(cFaint).Render(" glob → mode, longest match wins"))
 	var pp []string
 	for _, p := range s.Perms {
@@ -514,9 +466,12 @@ func (m Model) overlayView(bodyH int) string {
 
 	title := chromeTitle(mw, r)
 	content := lipgloss.NewStyle().Padding(0, 2).Width(mw).Render(strings.Join(b, "\n"))
-	foot := lipgloss.NewStyle().Foreground(cFaint).Padding(0, 2).Render("esc close · d full diff")
-	modal := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).BorderForeground(cDisabled).Background(cBgModal).
+	foot := lipgloss.NewStyle().Padding(0, 2).Render(
+		lipgloss.NewStyle().Foreground(cAccent).Render("esc") +
+			lipgloss.NewStyle().Foreground(cFaint).Render(" close · ") +
+			lipgloss.NewStyle().Foreground(cAccent).Render("d") +
+			lipgloss.NewStyle().Foreground(cFaint).Render(" full diff"))
+	modal := panel().Background(cBgModal).
 		Render(title + "\n" + content + "\n" + foot)
 	return lipgloss.Place(m.w, bodyH, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -525,7 +480,7 @@ func chromeTitle(mw int, r Row) string {
 	name := lipgloss.NewStyle().Foreground(cBright).Bold(true).Background(cBgModalTitle).Render(r.Rel)
 	var st string
 	if r.Resolved {
-		g, c := statusGlyph(r.Status)
+		g, c, _ := statusGlyph(r.Status)
 		st = lipgloss.NewStyle().Foreground(c).Background(cBgModalTitle).Render(g)
 	} else {
 		st = lipgloss.NewStyle().Foreground(cMuted).Background(cBgModalTitle).Render("not applied on this machine")
