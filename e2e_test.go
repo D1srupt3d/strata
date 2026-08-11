@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -47,8 +48,14 @@ func TestEndToEnd(t *testing.T) {
 	if !strings.Contains(string(git), "work@cfs.energy") {
 		t.Fatalf("substitution: %s", git)
 	}
-	if info, err := os.Stat(filepath.Join(home, ".ssh", "config")); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("ssh config mode: %v, %v", info.Mode(), err)
+	info, err := os.Stat(filepath.Join(home, ".ssh", "config"))
+	if err != nil {
+		t.Fatalf("ssh config stat: %v", err)
+	}
+	// Windows has no POSIX modes: Chmod only toggles a read-only bit and
+	// Perm() reports 0666/0444, so the mode assertion is POSIX-only.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("ssh config mode: %v", info.Mode())
 	}
 
 	// 2. drift → status → refuse → add absorbs
