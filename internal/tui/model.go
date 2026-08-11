@@ -1,7 +1,7 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Model is the bubbletea model. All data is computed once at launch (in
@@ -27,7 +27,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -76,9 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// Run launches the TUI in the alternate screen.
+// Run launches the TUI in the alternate screen (declared in View).
 func Run(s *Snapshot) error {
-	p := tea.NewProgram(New(s), tea.WithAltScreen())
+	p := tea.NewProgram(New(s))
 	_, err := p.Run()
 	return err
 }

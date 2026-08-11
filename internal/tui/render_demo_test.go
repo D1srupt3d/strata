@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -16,12 +16,12 @@ func TestDemoRender(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
 
 	m, _ = m.Update(key("2"))
-	t.Log("FILES TAB:\n" + ansiRe.ReplaceAllString(m.View(), ""))
+	t.Log("FILES TAB:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 
 	m, _ = m.Update(key("enter"))
-	t.Log("DRILLDOWN:\n" + ansiRe.ReplaceAllString(m.View(), ""))
+	t.Log("DRILLDOWN:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 
 	m, _ = m.Update(key("esc"))
 	m, _ = m.Update(key("1"))
-	t.Log("LAYERS TAB:\n" + ansiRe.ReplaceAllString(m.View(), ""))
+	t.Log("LAYERS TAB:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 }

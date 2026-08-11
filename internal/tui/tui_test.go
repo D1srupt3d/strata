@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"strata/internal/config"
 	"strata/internal/state"
@@ -138,14 +138,14 @@ func TestSnapshotLayersAndVars(t *testing.T) {
 	}
 }
 
-func key(k string) tea.KeyMsg {
+func key(k string) tea.KeyPressMsg {
 	switch k {
 	case "up", "down", "left", "right", "enter", "esc":
-		types := map[string]tea.KeyType{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft,
+		codes := map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft,
 			"right": tea.KeyRight, "enter": tea.KeyEnter, "esc": tea.KeyEscape}
-		return tea.KeyMsg{Type: types[k]}
+		return tea.KeyPressMsg{Code: codes[k]}
 	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+	return tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
 }
 
 func TestModelNavigation(t *testing.T) {
@@ -153,32 +153,32 @@ func TestModelNavigation(t *testing.T) {
 	var m tea.Model = New(s)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
 
-	if !strings.Contains(m.View(), "strata") {
+	if !strings.Contains(m.View().Content, "strata") {
 		t.Fatal("header missing")
 	}
 
 	m, _ = m.Update(key("2")) // Files tab
-	v := m.View()
+	v := m.View().Content
 	if !strings.Contains(v, ".gitconfig") || !strings.Contains(v, "WINS HERE") {
 		t.Fatalf("files tab missing content:\n%s", v)
 	}
 
 	m, _ = m.Update(key("down"))
 	m, _ = m.Update(key("enter"))
-	v = m.View()
+	v = m.View().Content
 	if !strings.Contains(v, "SOURCE → DESTINATION") || !strings.Contains(v, "RESOLVES ON") {
 		t.Fatalf("drilldown missing:\n%s", v)
 	}
 
 	m, _ = m.Update(key("esc"))
 	m, _ = m.Update(key("3"))
-	v = m.View()
+	v = m.View().Content
 	if !strings.Contains(v, "VALUE HERE") || !strings.Contains(v, "you@work.example") {
 		t.Fatalf("vars tab missing:\n%s", v)
 	}
 
 	m, _ = m.Update(key("right")) // wraps to Layers
-	v = m.View()
+	v = m.View().Content
 	if !strings.Contains(v, "↷ work") {
 		t.Fatalf("layers tab should show override marker:\n%s", v)
 	}

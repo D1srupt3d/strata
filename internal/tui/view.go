@@ -2,9 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/pmezard/go-difflib/difflib"
 
 	"strata/internal/engine"
@@ -30,10 +32,13 @@ var (
 	cBlue   = lipgloss.Color("#6DA8E8")
 	cRed    = lipgloss.Color("#D86A6A")
 
-	rolePalette = []lipgloss.Color{"#CF8FD6", "#D68FA8", "#B08FD6", "#D6A08F"}
+	rolePalette = []color.Color{
+		lipgloss.Color("#CF8FD6"), lipgloss.Color("#D68FA8"),
+		lipgloss.Color("#B08FD6"), lipgloss.Color("#D6A08F"),
+	}
 )
 
-func statusGlyph(st engine.FileStatus) (string, lipgloss.Color) {
+func statusGlyph(st engine.FileStatus) (string, color.Color) {
 	switch st {
 	case engine.Clean:
 		return "● clean", cGreen
@@ -52,7 +57,7 @@ func statusGlyph(st engine.FileStatus) (string, lipgloss.Color) {
 	}
 }
 
-func (s *Snapshot) layerColor(name string) (lipgloss.Color, lipgloss.Color) {
+func (s *Snapshot) layerColor(name string) (color.Color, color.Color) {
 	switch s.Kind[name] {
 	case "base":
 		return cSoft, cDisabled
@@ -120,7 +125,7 @@ func chromeLine(w int, left, right string) string {
 
 // ── top-level view ───────────────────────────────────────────────────
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	bodyH := m.h - 3
 	if bodyH < 4 {
 		bodyH = 4
@@ -137,11 +142,13 @@ func (m Model) View() string {
 	if m.open {
 		body = m.overlayView(bodyH)
 	}
-	return m.headerView() + "\n" + m.tabsView() + "\n" + fillHeight(body, bodyH) + "\n" + m.footerView()
+	v := tea.NewView(m.headerView() + "\n" + m.tabsView() + "\n" + fillHeight(body, bodyH) + "\n" + m.footerView())
+	v.AltScreen = true
+	return v
 }
 
 func (m Model) headerView() string {
-	st := func(c lipgloss.Color, b bool) lipgloss.Style {
+	st := func(c color.Color, b bool) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(c).Background(cBgChrome).Bold(b)
 	}
 	left := " " + st(cBright, true).Render("strata") + "  " + st(cMuted, false).Render(m.snap.RepoPath)
@@ -279,7 +286,7 @@ func (m Model) filesView(bodyH int) string {
 	for i := off; i < end; i++ {
 		r := s.Rows[i]
 		selRow := i == m.sel
-		cell := func(text string, fg lipgloss.Color) string {
+		cell := func(text string, fg color.Color) string {
 			st := lipgloss.NewStyle().Foreground(fg)
 			if selRow {
 				st = st.Background(cBgSel)
