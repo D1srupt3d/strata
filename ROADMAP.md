@@ -1,7 +1,8 @@
 # roadmap
 
-Versions are CalVer, `YYYY.0M.PATCH`, so 2026.07.0 is "shipped July 2026" and
-2026.07.1 is "shipped again that same month". No promises on dates. This is a
+Versions are CalVer, `YYYY.M.PATCH` (un-padded month — GoReleaser enforces
+semver and rejects `2026.08.0`), so 2026.8.0 is "shipped August 2026" and
+2026.8.1 is "shipped again that same month". No promises on dates. This is a
 personal tool that I use every day, which means things get built when they
 annoy me enough.
 
@@ -45,17 +46,24 @@ step. The open question from the plan — file leaves the work layer but
 still exists in base — resolved exactly how the model predicts (base wins
 again, file gets rewritten), and there's a test pinning that down.
 
+## done — 2026.8.0: CI and real releases
+
+GitHub Actions runs gofmt + vet + build + test on macOS, Linux, and Windows
+for every push, and pushing a tag has GoReleaser build all six OS/arch
+binaries with checksums and a changelog. The release workflow re-runs the
+tests before publishing, so a tagged commit with a red suite can't ship.
+(I tried auto-releasing on a `release:` commit prefix for about an hour and
+killed it — too much magic. Tags are the release decision.)
+
+Immediately worth it: the first-ever Windows run caught two test bugs (no
+POSIX file modes there, and a fake home of `/Users/x` isn't absolute without
+a drive letter), and the first-ever Linux run just passed. v2026.8.0 is live
+with downloadable binaries. Still open from the original wishlist: the
+Homebrew tap, which needs its own repo and token.
+
 ## soon-ish
 
-**CI and real releases.** Tests only run when I remember to run them. A
-GitHub Actions workflow (test + vet + build for all three OSes) plus tagged
-releases with prebuilt binaries would mean setting up a new machine doesn't
-require a Go toolchain — download binary, `strata init <repo url>`, done.
-That's the whole pitch of a dotfiles manager, so this should probably happen
-before I buy my next laptop and not after. GoReleaser gets me most of this
-for one config file — binaries, checksums, changelogs, and a Homebrew tap.
-
-**`strata upgrade` (self-updater).** Once releases exist: check the latest
+**`strata upgrade` (self-updater).** Now that releases exist: check the latest
 tag, download the right binary, verify it against checksums.txt (never
 skipping that — it's replacing an executable), and atomically swap it over
 os.Executable(), same temp-file-and-rename trick apply already uses. Two
