@@ -1,6 +1,8 @@
 # compiled binary (built via install.sh / go build)
 /strata
 *.exe
+# goreleaser output
+/dist/
 
 .DS_Store
 # local Claude Code settings

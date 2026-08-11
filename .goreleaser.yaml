@@ -1,0 +1,30 @@
+version: 2
+
+# Tags must be un-padded CalVer (v2026.8.0, not v2026.08.0) — GoReleaser
+# enforces semver and rejects the zero-padded month.
+
+builds:
+  - binary: strata
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
