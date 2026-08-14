@@ -205,7 +205,7 @@ Every variable with its value **on this machine**, where it came from (`machine.
 | `esc` | close drilldown / diff |
 | `q` / `ctrl+c` | quit |
 
-If the terminal is too narrow, the per-OS columns drop first. The design comps and handoff spec the TUI was built from live in [docs/design/tui/](docs/design/tui/).
+If the terminal is too narrow, the per-OS columns drop first.
 
 ---
 
@@ -566,7 +566,7 @@ internal/perms/          # permission rules (doublestar globs, longest match win
 internal/state/          # last-applied hash store
 internal/engine/         # Plan (status classification), Apply, RunHooks
 internal/fsutil/         # SHA-256 hashing, atomic writes
-internal/tui/            # read-only TUI (Bubble Tea + Lip Gloss); design: docs/design/tui/
+internal/tui/            # read-only TUI (Bubble Tea + Lip Gloss)
 ```
 
 The engine takes `GOOS` and the os-release content as *parameters*, so tests exercise mac/arch/windows behavior on any platform.

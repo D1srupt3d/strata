@@ -7,5 +7,5 @@
 .DS_Store
 # local Claude Code settings
 .claude/
-# internal design docs — not part of the published project
+# local-only working notes
 /docs/

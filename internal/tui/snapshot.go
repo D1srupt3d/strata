@@ -1,6 +1,5 @@
 // Package tui implements strata's read-only terminal UI: three tabs
-// (Layers / Files / Vars & Rules) plus a per-file drilldown, following the
-// design handoff in docs/design/tui.
+// (Layers / Files / Vars & Rules) plus a per-file drilldown.
 package tui
 
 import (
