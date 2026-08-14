@@ -10,7 +10,18 @@ BIN_DIR="${STRATA_BIN_DIR:-$HOME/.local/bin}"
 cd "$(dirname "$0")"
 
 echo "building strata..."
-go build -o strata .
+# Stamp the real build into `strata --version`. Without this every locally
+# built binary reports whatever main.go's default says, so you cannot tell an
+# up-to-date install from a month-old one — only GoReleaser sets this on tagged
+# builds. Tags are v-prefixed (v2026.8.0) and the version string is not, so
+# strip it. Falls back to the compiled-in default outside a git checkout
+# (tarball, `go install`), where git describe has nothing to report.
+ver="$(git describe --tags --dirty --always 2>/dev/null || true)"
+if [ -n "$ver" ]; then
+    go build -ldflags "-X main.version=${ver#v}" -o strata .
+else
+    go build -o strata .
+fi
 
 mkdir -p "$BIN_DIR"
 cp strata "$BIN_DIR/strata"

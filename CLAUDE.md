@@ -112,8 +112,9 @@ the status table in `README.md` together.
   the filesystem, and never let a test touch the real `$HOME`.
 - Version lives in `var version` in [main.go](main.go) — CalVer `YYYY.M.PATCH`. It must stay a
   `var`, not a `const`: release builds overwrite it via GoReleaser's
-  `-X main.version={{.Version}}` ldflag, and `-X` silently does nothing to a `const`. The
-  in-source value is only the dev/`go build` default.
+  `-X main.version={{.Version}}` ldflag, and `-X` silently does nothing to a `const`.
+  `install.sh` stamps it too, from `git describe --tags --dirty --always`. The in-source value
+  is only the fallback for a bare `go build` or a tarball with no git history.
 - Package doc comments carry the "why" for each `internal/` package. Match that density.
 
 ## Repo notes
