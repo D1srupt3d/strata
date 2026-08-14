@@ -3,10 +3,13 @@
 package layers
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // OSLayers maps GOOS (+ /etc/os-release content on Linux) to layer names.
@@ -52,9 +55,42 @@ func Order(roleLayers []string, goos, osRelease string) []string {
 	return out
 }
 
+// DefaultIgnore are patterns no repo ever wants managed. These files are
+// written *into* layer dirs by the OS file browser, not by the user — Finder
+// drops .DS_Store the moment the repo window is opened — so they would
+// otherwise resolve as dotfiles and be copied to every machine. Always
+// applied, on every OS: a mac-authored .DS_Store is just as meaningless on
+// Linux, and a repo is often edited from more than one platform.
+var DefaultIgnore = []string{
+	"**/.DS_Store",
+	"**/._*",
+	"**/.Spotlight-V100",
+	"**/Thumbs.db",
+	"**/desktop.ini",
+}
+
+// shouldIgnore reports whether rel matches any pattern. A malformed pattern is
+// an error rather than a silent non-match, matching the fail-loud rule that
+// governs substitution: a typo must not quietly manage a file you excluded.
+func shouldIgnore(rel string, patterns []string) (bool, error) {
+	for _, pat := range patterns {
+		ok, err := doublestar.Match(pat, rel)
+		if err != nil {
+			return false, fmt.Errorf("ignore pattern %q: %w", pat, err)
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // Resolve walks each existing layer dir in order and returns
-// rel path (forward slashes) → absolute winning source path.
-func Resolve(repoDir string, order []string) (map[string]string, error) {
+// rel path (forward slashes) → absolute winning source path. Files matching
+// DefaultIgnore or one of the caller's ignore patterns are skipped entirely,
+// so they never become managed — and so never surface as unmanaged either.
+func Resolve(repoDir string, order []string, ignore []string) (map[string]string, error) {
+	patterns := append(append([]string{}, DefaultIgnore...), ignore...)
 	out := map[string]string{}
 	for _, layer := range order {
 		layerDir := filepath.Join(repoDir, layer)
@@ -72,7 +108,15 @@ func Resolve(repoDir string, order []string) (map[string]string, error) {
 			if err != nil {
 				return err
 			}
-			out[filepath.ToSlash(rel)] = path
+			relSlash := filepath.ToSlash(rel)
+			skip, err := shouldIgnore(relSlash, patterns)
+			if err != nil {
+				return err
+			}
+			if skip {
+				return nil
+			}
+			out[relSlash] = path
 			return nil
 		})
 		if err != nil {
