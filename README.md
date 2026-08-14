@@ -373,6 +373,14 @@ A repo with no `dots.toml` at all is valid: every file is copied byte-for-byte w
 # [section].)
 substitute = [".gitconfig", ".Brewfile"]
 
+# ── Ignore ──────────────────────────────────────────────────────────
+# Paths inside a layer that are NOT dotfiles: editor scratch, caches,
+# and app-managed state that rewrites itself. Same glob rules as
+# [permissions]. Ignoring is not removing — a file you ignore after it
+# was already applied is simply forgotten, and its $HOME copy is left
+# alone. (Also a top-level key: must appear BEFORE any [section].)
+ignore = [".claude/settings.json", "**/*.log"]
+
 # ── Variable defaults ───────────────────────────────────────────────
 # Overridden per machine by machine.toml [vars].
 [vars]
@@ -393,6 +401,14 @@ name  = "Your Name"
 [hooks]
 ".Brewfile" = "brew bundle --file=~/.Brewfile"
 ```
+
+These patterns are **always** ignored, on every OS, without configuring anything — they are written into layer dirs by the OS file browser rather than by you, and mean nothing on another machine:
+
+```
+**/.DS_Store   **/._*   **/.Spotlight-V100   **/Thumbs.db   **/desktop.ini
+```
+
+A malformed ignore pattern is an error, not a silent non-match, so a typo can never quietly manage a file you meant to exclude.
 
 Substitution tokens look like `{{email}}` (spaces allowed: `{{ email }}`; names are `[A-Za-z0-9_]`). An **undefined variable in a substituted file fails the whole apply** — strata never writes a half-substituted config:
 

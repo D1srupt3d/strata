@@ -85,12 +85,25 @@ func shouldIgnore(rel string, patterns []string) (bool, error) {
 	return false, nil
 }
 
+// allPatterns is the effective ignore set: built-ins first, then repo config.
+func allPatterns(ignore []string) []string {
+	return append(append([]string{}, DefaultIgnore...), ignore...)
+}
+
+// Ignored reports whether rel is excluded. Exported because the engine must
+// ask the same question about paths that exist only in state.json — a file
+// recorded by an earlier apply and ignored since is not "gone from the
+// layers", it is simply no longer ours, and must not be deleted from $HOME.
+func Ignored(rel string, ignore []string) (bool, error) {
+	return shouldIgnore(rel, allPatterns(ignore))
+}
+
 // Resolve walks each existing layer dir in order and returns
 // rel path (forward slashes) → absolute winning source path. Files matching
 // DefaultIgnore or one of the caller's ignore patterns are skipped entirely,
 // so they never become managed — and so never surface as unmanaged either.
 func Resolve(repoDir string, order []string, ignore []string) (map[string]string, error) {
-	patterns := append(append([]string{}, DefaultIgnore...), ignore...)
+	patterns := allPatterns(ignore)
 	out := map[string]string{}
 	for _, layer := range order {
 		layerDir := filepath.Join(repoDir, layer)

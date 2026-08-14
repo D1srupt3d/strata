@@ -56,7 +56,7 @@ func inList(s string, list []string) bool {
 // goos/osRelease are parameters so tests can simulate any platform.
 func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease string) ([]Item, error) {
 	order := layers.Order(cfg.RoleLayers, goos, osRelease)
-	sources, err := layers.Resolve(cfg.RepoDir, order)
+	sources, err := layers.Resolve(cfg.RepoDir, order, cfg.Ignore)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,18 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 	// Files strata previously wrote that no longer exist in any layer.
 	var gone []string
 	for rel := range st.Files {
-		if _, ok := sources[rel]; !ok {
+		if _, ok := sources[rel]; ok {
+			continue
+		}
+		// Ignoring is not removing. A path strata used to write and now
+		// ignores drops out of the plan entirely, so the $HOME copy survives
+		// untouched; classifying it Removed would make one new ignore line
+		// delete live config on the next apply.
+		ignored, err := layers.Ignored(rel, cfg.Ignore)
+		if err != nil {
+			return nil, err
+		}
+		if !ignored {
 			gone = append(gone, rel)
 		}
 	}

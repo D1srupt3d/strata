@@ -12,6 +12,7 @@ import (
 
 type RepoConfig struct {
 	Substitute  []string          `toml:"substitute"`
+	Ignore      []string          `toml:"ignore"`
 	Vars        map[string]string `toml:"vars"`
 	Permissions map[string]string `toml:"permissions"`
 	Hooks       map[string]string `toml:"hooks"`
@@ -29,6 +30,7 @@ type Config struct {
 	RoleLayers  []string
 	Vars        map[string]string // repo defaults overridden by machine values
 	Substitute  []string
+	Ignore      []string // globs never managed, on top of layers.DefaultIgnore
 	Permissions map[string]string
 	Hooks       map[string]string
 }
@@ -78,6 +80,7 @@ func Merge(rc RepoConfig, mc MachineConfig) Config {
 		RoleLayers:  mc.Layers,
 		Vars:        vars,
 		Substitute:  rc.Substitute,
+		Ignore:      rc.Ignore,
 		Permissions: rc.Permissions,
 		Hooks:       rc.Hooks,
 	}

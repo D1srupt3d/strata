@@ -56,6 +56,29 @@ email = "work@example.com"
 	}
 }
 
+func TestIgnoreLoadsFromRepoConfig(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "repo", "dots.toml"), `
+ignore = [".claude/settings.json", "**/*.log"]
+`)
+	write(t, filepath.Join(dir, "machine.toml"), `
+repo = "`+filepath.ToSlash(filepath.Join(dir, "repo"))+`"
+`)
+	m, err := LoadMachineConfig(filepath.Join(dir, "machine.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := LoadRepoConfig(m.Repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := Merge(r, m)
+	want := []string{".claude/settings.json", "**/*.log"}
+	if !reflect.DeepEqual(cfg.Ignore, want) {
+		t.Errorf("Ignore = %v, want %v", cfg.Ignore, want)
+	}
+}
+
 func TestMissingRepoConfigIsOK(t *testing.T) {
 	r, err := LoadRepoConfig(t.TempDir()) // no dots.toml
 	if err != nil {

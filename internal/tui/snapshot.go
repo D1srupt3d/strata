@@ -140,7 +140,7 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		activeIdx[n] = i
 	}
 
-	resHere, err := layers.Resolve(cfg.RepoDir, hereOrder)
+	resHere, err := layers.Resolve(cfg.RepoDir, hereOrder, cfg.Ignore)
 	if err != nil {
 		return nil, err
 	}
@@ -148,15 +148,15 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 	if goos == "linux" {
 		linuxRelease = osRelease
 	}
-	resMac, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "darwin", ""))
+	resMac, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "darwin", ""), cfg.Ignore)
 	if err != nil {
 		return nil, err
 	}
-	resLinux, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "linux", linuxRelease))
+	resLinux, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "linux", linuxRelease), cfg.Ignore)
 	if err != nil {
 		return nil, err
 	}
-	resWin, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "windows", ""))
+	resWin, err := layers.Resolve(cfg.RepoDir, layers.Order(cfg.RoleLayers, "windows", ""), cfg.Ignore)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 	cols, kind := canonicalColumns(cfg.RepoDir, cfg.RoleLayers)
 	colFiles := map[string]map[string]string{} // layer → rel → src
 	for _, name := range cols {
-		m, err := layers.Resolve(cfg.RepoDir, []string{name})
+		m, err := layers.Resolve(cfg.RepoDir, []string{name}, cfg.Ignore)
 		if err != nil {
 			return nil, err
 		}

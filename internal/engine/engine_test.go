@@ -47,6 +47,48 @@ func plan(t *testing.T, cfg config.Config, home string, st state.State) map[stri
 	return byRel
 }
 
+// Ignoring a file must mean "forget it", not "delete it". A path that was
+// managed before and is now ignored — .DS_Store that strata used to copy, or a
+// settings.json the user decided isn't a real dotfile — must be dropped from
+// the plan entirely, leaving the $HOME copy alone. Treating it as Removed
+// would make adding one ignore line silently delete live config.
+func TestIgnoredFileIsForgottenNotDeleted(t *testing.T) {
+	cfg, home := fixture(t)
+	cfg.Ignore = []string{".claude/settings.json"}
+
+	// Both files exist in $HOME and were recorded by an earlier apply.
+	for _, rel := range []string{".DS_Store", ".claude/settings.json"} {
+		p := filepath.Join(home, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("live content"), 0o644)
+	}
+	st := state.State{Files: map[string]string{
+		".DS_Store":             fsutil.Hash([]byte("live content")),
+		".claude/settings.json": fsutil.Hash([]byte("live content")),
+	}}
+
+	items := plan(t, cfg, home, st)
+	if it, ok := items[".DS_Store"]; ok {
+		t.Errorf("built-in ignored file planned as %v, want absent", it.Status)
+	}
+	if it, ok := items[".claude/settings.json"]; ok {
+		t.Errorf("configured ignored file planned as %v, want absent", it.Status)
+	}
+
+	all, err := Plan(cfg, home, st, "darwin", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(all, home, &st, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{".DS_Store", ".claude/settings.json"} {
+		if _, err := os.Stat(filepath.Join(home, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("apply deleted ignored file %s from $HOME: %v", rel, err)
+		}
+	}
+}
+
 func TestPlanStatuses(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
