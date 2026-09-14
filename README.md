@@ -419,7 +419,7 @@ error: .gitconfig: undefined variables: email
 ### `machine.toml` (`~/.config/strata/machine.toml`)
 
 ```toml
-repo = "~/dotfiles"        # ~ is expanded
+repo = "~/dotfiles"        # ~ is expanded. Moving it? See "Move the repo to a new folder"
 layers = ["work"]          # role layers, applied in this order after OS layers
 
 [vars]                     # overrides dots.toml [vars] key-by-key
@@ -500,6 +500,22 @@ strata sync                # git pull --ff-only + apply
 ```
 
 strata doesn't wrap git beyond `sync` — your dotfiles repo is a normal git repo; use git however you like.
+
+### Move the repo to a new folder
+
+Move it, then point `machine.toml` at the new path — that's the whole migration:
+
+```sh
+mv ~/dotfiles ~/code/dotfiles
+# edit ~/.config/strata/machine.toml:  repo = "~/code/dotfiles"
+strata status              # should say clean
+```
+
+The state file tracks files by their path in `$HOME`, not in the repo, so everything stays managed and nothing is rewritten. No re-init needed.
+
+**Order matters.** strata treats a missing repo folder as a repo with no files: every managed file shows as `removed`, and the next `apply` deletes them from `$HOME` (with the usual refuse-if-you-edited-it safety). Update `repo` *before* running `apply`.
+
+That's also a deliberate way to clear out everything strata manages — e.g. to start clean before `strata init` against a new location. Check `strata status` first so you know exactly what will go.
 
 ### First apply on a machine with existing dotfiles
 
