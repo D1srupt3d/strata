@@ -31,7 +31,8 @@ func needTools(t *testing.T, tools ...string) {
 
 // runGetSh runs get.sh against rel with a throwaway HOME and install dir.
 // Returns the install dir, HOME, combined output, and the run error.
-func runGetSh(t *testing.T, s releasetest.Signer, rel releasetest.Release) (binDir, home, out string, err error) {
+// extraEnv entries override the defaults (the last value for a key wins).
+func runGetSh(t *testing.T, s releasetest.Signer, rel releasetest.Release, extraEnv ...string) (binDir, home, out string, err error) {
 	t.Helper()
 	home = t.TempDir()
 	binDir = filepath.Join(home, "bin")
@@ -43,6 +44,7 @@ func runGetSh(t *testing.T, s releasetest.Signer, rel releasetest.Release) (binD
 		"STRATA_BIN_DIR="+binDir,
 		"STRATA_GET_TRUSTED_KEY="+s.AuthorizedKey,
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	b, err := cmd.CombinedOutput()
 	return binDir, home, string(b), err
 }
@@ -50,6 +52,40 @@ func runGetSh(t *testing.T, s releasetest.Signer, rel releasetest.Release) (binD
 func hostRelease(t *testing.T, s releasetest.Signer) releasetest.Release {
 	t.Helper()
 	return releasetest.NewRelease(t, s, release.Namespace, "2026.9.1", runtime.GOOS, runtime.GOARCH, fakeStrata("2026.9.1"))
+}
+
+// The smoke test only checked that the binary ran; it must also report the
+// release's exact version, the same check `strata upgrade` makes.
+func TestGetShRefusesABinaryReportingTheWrongVersion(t *testing.T) {
+	needTools(t, "sh", "curl", "tar", "ssh-keygen")
+	s := releasetest.NewSigner(t)
+	rel := releasetest.NewRelease(t, s, release.Namespace, "2026.9.1", runtime.GOOS, runtime.GOARCH, fakeStrata("2026.9.10"))
+	binDir, _, out, err := runGetSh(t, s, rel)
+	if err == nil {
+		t.Fatalf("get.sh installed a binary that reports the wrong version:\n%s", out)
+	}
+	if exists(filepath.Join(binDir, "strata")) {
+		t.Error("a binary was installed despite the version mismatch")
+	}
+}
+
+// ssh-keygen's own reason for a failed check was thrown away, so an OpenSSH
+// too old to verify signatures (before 8.1) looked like a forged release.
+func TestGetShExplainsAnSSHKeygenThatCantVerify(t *testing.T) {
+	needTools(t, "sh", "curl", "tar", "ssh-keygen")
+	fake := t.TempDir()
+	writeFile(t, filepath.Join(fake, "ssh-keygen"), "#!/bin/sh\necho 'ssh-keygen: unknown option -- Y' >&2\nexit 1\n")
+	if err := os.Chmod(filepath.Join(fake, "ssh-keygen"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := releasetest.NewSigner(t)
+	_, _, out, err := runGetSh(t, s, hostRelease(t, s), "PATH="+fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err == nil {
+		t.Fatalf("get.sh passed with an ssh-keygen that can't verify:\n%s", out)
+	}
+	if !strings.Contains(out, "unknown option") || !strings.Contains(out, "OpenSSH 8.1") {
+		t.Errorf("get.sh doesn't show ssh-keygen's reason and the OpenSSH version hint:\n%s", out)
+	}
 }
 
 func TestGetShInstallsAVerifiedRelease(t *testing.T) {
