@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -29,6 +30,7 @@ type Config struct {
 	RepoDir     string
 	RoleLayers  []string
 	Vars        map[string]string // repo defaults overridden by machine values
+	VarFrom     map[string]string // var name → file its value came from
 	Substitute  []string
 	Ignore      []string // globs never managed, on top of layers.DefaultIgnore
 	Permissions map[string]string
@@ -43,19 +45,40 @@ func LoadRepoConfig(repoDir string) (RepoConfig, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return rc, nil
 	}
-	if _, err := toml.DecodeFile(path, &rc); err != nil {
+	md, err := toml.DecodeFile(path, &rc)
+	if err != nil {
 		return rc, fmt.Errorf("parsing %s: %w", path, err)
 	}
-	return rc, nil
+	return rc, rejectUnknown(path, md)
 }
 
 func LoadMachineConfig(path string) (MachineConfig, error) {
 	var mc MachineConfig
-	if _, err := toml.DecodeFile(path, &mc); err != nil {
+	md, err := toml.DecodeFile(path, &mc)
+	if err != nil {
 		return mc, fmt.Errorf("parsing %s (run 'strata init' first?): %w", path, err)
 	}
 	mc.Repo = ExpandTilde(mc.Repo)
-	return mc, nil
+	return mc, rejectUnknown(path, md)
+}
+
+// rejectUnknown fails on keys the config structs don't define. The TOML
+// decoder silently drops them, so a typo like [hook] for [hooks] would
+// otherwise just never run — the kind of quiet no-op strata refuses to allow.
+func rejectUnknown(path string, md toml.MetaData) error {
+	seen := map[string]bool{}
+	var bad []string
+	for _, key := range md.Undecoded() {
+		if top := key[0]; !seen[top] {
+			seen[top] = true
+			bad = append(bad, top)
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	sort.Strings(bad)
+	return fmt.Errorf("%s: unknown key(s) %s — typo?", path, strings.Join(bad, ", "))
 }
 
 func ExpandTilde(p string) string {
@@ -67,18 +90,22 @@ func ExpandTilde(p string) string {
 	return p
 }
 
+// Merge layers machine vars over repo defaults, recording where each value
+// came from. Provenance is decided here, once, so every consumer (the TUI,
+// and any future var source) agrees with what apply substitutes.
 func Merge(rc RepoConfig, mc MachineConfig) Config {
-	vars := map[string]string{}
+	vars, from := map[string]string{}, map[string]string{}
 	for k, v := range rc.Vars {
-		vars[k] = v
+		vars[k], from[k] = v, "dots.toml"
 	}
 	for k, v := range mc.Vars {
-		vars[k] = v
+		vars[k], from[k] = v, "machine.toml"
 	}
 	return Config{
 		RepoDir:     mc.Repo,
 		RoleLayers:  mc.Layers,
 		Vars:        vars,
+		VarFrom:     from,
 		Substitute:  rc.Substitute,
 		Ignore:      rc.Ignore,
 		Permissions: rc.Permissions,
