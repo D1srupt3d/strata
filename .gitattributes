@@ -1,0 +1,5 @@
+# Signature test fixtures are byte-exact: each .sig covers the exact bytes of
+# message.txt. Git on Windows converts LF to CRLF on checkout by default
+# (core.autocrlf=true), which changed those bytes and broke signature
+# verification on the Windows CI runner. -text means "never convert".
+internal/release/testdata/** -text
