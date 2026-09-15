@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/cobra"
@@ -25,27 +26,32 @@ show up too — as lines apply would remove. No drift is ever silent.`,
 			if err != nil {
 				return err
 			}
-			items, err := app.plan()
-			if err != nil {
-				return err
-			}
-			for _, it := range items {
-				if it.Status == engine.Clean {
-					continue
-				}
-				text, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-					A:        difflib.SplitLines(string(it.Current)),
-					B:        difflib.SplitLines(string(it.Desired)),
-					FromFile: "home/" + it.Rel + " (" + it.Status.String() + ")",
-					ToFile:   "repo/" + it.Rel,
-					Context:  3,
-				})
-				if err != nil {
-					return err
-				}
-				fmt.Fprint(cmd.OutOrStdout(), text)
-			}
-			return nil
+			return writeDiff(app, cmd.OutOrStdout())
 		},
 	}
+}
+
+// writeDiff prints a unified diff for every file that isn't clean.
+func writeDiff(app *appContext, out io.Writer) error {
+	items, err := app.plan()
+	if err != nil {
+		return err
+	}
+	for _, it := range items {
+		if it.Status == engine.Clean {
+			continue
+		}
+		text, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+			A:        difflib.SplitLines(string(it.Current)),
+			B:        difflib.SplitLines(string(it.Desired)),
+			FromFile: "home/" + it.Rel + " (" + it.Status.String() + ")",
+			ToFile:   "repo/" + it.Rel,
+			Context:  3,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprint(out, text)
+	}
+	return nil
 }

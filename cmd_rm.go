@@ -47,9 +47,7 @@ wins again and the $HOME copy is rewritten to it instead.`,
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", source)
-			apply := newApplyCmd()
-			apply.SetOut(cmd.OutOrStdout())
-			return apply.RunE(apply, nil)
+			return runApply(app, cmd.OutOrStdout(), applyOpts{})
 		},
 	}
 }
