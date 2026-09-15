@@ -17,6 +17,7 @@ func TestRelFromArg(t *testing.T) {
 	for arg, want := range map[string]string{
 		".zshrc":   ".zshrc",
 		"~/.zshrc": ".zshrc",
+		"..weird":  "..weird", // a name that starts with "..", not a parent dir
 		filepath.Join(home, ".config", "nvim", "init.lua"): ".config/nvim/init.lua",
 	} {
 		got, err := relFromArg(arg, home)

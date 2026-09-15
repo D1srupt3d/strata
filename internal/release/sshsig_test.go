@@ -1,11 +1,28 @@
 package release
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"strata/internal/release/releasetest"
 )
+
+// Rotating the release key means one release that trusts two keys at once:
+// release_key.pub holds one key per line (comments and blank lines ignored),
+// and a signature from any listed key verifies.
+func TestTrustedKeysSupportRotation(t *testing.T) {
+	retiring := releasetest.NewSigner(t).AuthorizedKey
+	keys := keyLines("# retiring key\n" + retiring + "\n\n" + testKey(t) + "\n")
+	if len(keys) != 2 {
+		t.Fatalf("keyLines found %d keys, want 2: %q", len(keys), keys)
+	}
+	if err := VerifySSHSig(fixture(t, "message.txt"), fixture(t, "message.sha512.sig"), Namespace, keys); err != nil {
+		t.Errorf("a signature by the second trusted key was rejected: %v", err)
+	}
+}
 
 // Fixtures come from the REAL ssh-keygen (testdata/gen.sh), so these tests
 // prove the verifier accepts exactly what release CI will produce.
@@ -22,6 +39,32 @@ func fixture(t *testing.T, name string) []byte {
 func testKey(t *testing.T) string {
 	t.Helper()
 	return strings.TrimSpace(string(fixture(t, "test_key.pub")))
+}
+
+// VerifySSHSig parses bytes downloaded from the internet, so no input may
+// make it panic, and nothing but the one genuinely signed message may ever
+// verify. `go test` runs the seeds; explore further with
+//
+//	go test -fuzz=FuzzVerifySSHSig ./internal/release
+func FuzzVerifySSHSig(f *testing.F) {
+	read := func(name string) []byte {
+		b, err := os.ReadFile(filepath.Join("testdata", name))
+		if err != nil {
+			f.Fatal(err)
+		}
+		return b
+	}
+	msg := read("message.txt")
+	key := strings.TrimSpace(string(read("test_key.pub")))
+	for _, sig := range []string{"message.sha512.sig", "message.sha256.sig", "message.wrong-namespace.sig"} {
+		f.Add(msg, read(sig))
+	}
+	f.Add([]byte("x"), []byte("-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQ==\n-----END SSH SIGNATURE-----\n"))
+	f.Fuzz(func(t *testing.T, m, sig []byte) {
+		if VerifySSHSig(m, sig, Namespace, []string{key}) == nil && !bytes.Equal(m, msg) {
+			t.Fatalf("verified a message that was never signed: %q", m)
+		}
+	})
 }
 
 func TestVerifySSHSigAcceptsRealSSHKeygenSignatures(t *testing.T) {

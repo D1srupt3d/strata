@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -70,5 +71,28 @@ func TestEditPrefersVisualOverEditor(t *testing.T) {
 	}
 	if got := readFile(t, s.repo("base/.zshrc")); got != "edited\n" {
 		t.Errorf("$VISUAL editor didn't run; source = %q", got)
+	}
+}
+
+// Windows has no sh to split the editor setting, and splitting on spaces
+// broke any editor under "C:\Program Files\". Double quotes group, and a
+// setting that is itself an existing file is used whole. Pure string work,
+// so it runs on every OS.
+func TestWindowsEditorArgs(t *testing.T) {
+	spaced := filepath.Join(t.TempDir(), "Program Files", "ed.exe")
+	writeFile(t, spaced, "")
+	cases := []struct {
+		editor string
+		want   []string
+	}{
+		{"notepad", []string{"notepad", "f"}},
+		{"code --wait", []string{"code", "--wait", "f"}},
+		{`"C:\Program Files\Notepad++\notepad++.exe" -multiInst`, []string{`C:\Program Files\Notepad++\notepad++.exe`, "-multiInst", "f"}},
+		{spaced, []string{spaced, "f"}},
+	}
+	for _, c := range cases {
+		if got := windowsEditorArgs(c.editor, "f"); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("windowsEditorArgs(%q) = %q, want %q", c.editor, got, c.want)
+		}
 	}
 }

@@ -73,16 +73,50 @@ overrides it), just open that file directly — it's a plain file.`,
 // vi — git's order. The value may carry arguments ("code --wait"), so on
 // Unix it goes through sh exactly as git does; Windows splits on spaces.
 func editorCommand(file string) *exec.Cmd {
-	editor := os.Getenv("VISUAL")
+	editor := strings.TrimSpace(os.Getenv("VISUAL"))
 	if editor == "" {
-		editor = os.Getenv("EDITOR")
+		editor = strings.TrimSpace(os.Getenv("EDITOR"))
 	}
 	if editor == "" {
 		editor = "vi"
 	}
 	if runtime.GOOS == "windows" {
-		f := strings.Fields(editor)
-		return exec.Command(f[0], append(f[1:], file)...)
+		args := windowsEditorArgs(editor, file)
+		return exec.Command(args[0], args[1:]...)
 	}
 	return exec.Command("sh", "-c", editor+` "$@"`, editor, file)
+}
+
+// windowsEditorArgs splits the editor setting into program + arguments,
+// then file. Windows has no sh to do it, so this follows the usual Windows
+// convention: double quotes group words, as in
+// "C:\Program Files\Notepad++\notepad++.exe" -multiInst. A setting that is
+// itself an existing file is taken whole, so an unquoted path with spaces
+// works too.
+func windowsEditorArgs(editor, file string) []string {
+	if info, err := os.Stat(editor); err == nil && !info.IsDir() {
+		return []string{editor, file}
+	}
+	var args []string
+	var cur strings.Builder
+	inQuote, inWord := false, false
+	for _, r := range editor {
+		switch {
+		case r == '"':
+			inQuote, inWord = !inQuote, true
+		case (r == ' ' || r == '\t') && !inQuote:
+			if inWord {
+				args = append(args, cur.String())
+				cur.Reset()
+				inWord = false
+			}
+		default:
+			cur.WriteRune(r)
+			inWord = true
+		}
+	}
+	if inWord {
+		args = append(args, cur.String())
+	}
+	return append(args, file)
 }

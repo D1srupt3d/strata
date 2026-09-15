@@ -142,7 +142,7 @@ func Upgrade(ctx context.Context, o Options) (Result, error) {
 	if err != nil {
 		return res, fmt.Errorf("the new binary won't run: %w", err)
 	}
-	if !strings.Contains(out, "version "+to.String()) {
+	if !reportsVersion(out, to) {
 		return res, fmt.Errorf("the new binary reports %q, expected version %s — refusing to install", strings.TrimSpace(out), to)
 	}
 	if err := install(tmp, o.Target, o.GOOS); err != nil {
@@ -160,6 +160,13 @@ func (o Options) runVersion(ctx context.Context, path string) (string, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, path, "--version").Output()
 	return string(out), err
+}
+
+// reportsVersion reports whether `strata --version` output names exactly v
+// ("strata version 2026.9.1"). A substring check would accept 2026.9.10.
+func reportsVersion(out string, v Version) bool {
+	f := strings.Fields(out)
+	return len(f) >= 2 && f[len(f)-2] == "version" && f[len(f)-1] == v.String()
 }
 
 // checksumFor finds name's hash in a checksums.txt ("<sha256>  <name>").

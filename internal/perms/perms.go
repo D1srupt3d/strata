@@ -34,6 +34,11 @@ func bestRule(rel string, rules map[string]string) (match, bool, error) {
 		if err != nil {
 			return match{}, false, fmt.Errorf("permission %q = %q: not octal", pattern, modeStr)
 		}
+		// Go keeps setuid/setgid/sticky outside a plain mode's permission
+		// bits, so "4755" would be written as 755 and then never match.
+		if n > 0o777 {
+			return match{}, false, fmt.Errorf("permission %q = %q: only the rwx bits (000–777) are supported, not setuid, setgid or sticky", pattern, modeStr)
+		}
 		m := match{pattern, os.FileMode(n)}
 		switch {
 		case len(best) == 0 || len(pattern) > len(best[0].pattern):

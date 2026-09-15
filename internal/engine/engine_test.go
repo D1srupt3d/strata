@@ -157,6 +157,60 @@ func TestPlanStatuses(t *testing.T) {
 	}
 }
 
+// A role layer named in machine.toml with no folder in the repo is a typo,
+// not an empty layer: skipping it made every file it provided read Removed,
+// and the next apply deleted them from $HOME.
+func TestMissingRoleLayerFolderIsAnError(t *testing.T) {
+	cfg, home := fixture(t)
+	cfg.RoleLayers = []string{"wrok"}
+	_, err := Plan(cfg, home, state.State{Files: map[string]string{}}, "darwin", "")
+	if err == nil || !strings.Contains(err.Error(), `"wrok"`) {
+		t.Fatalf("Plan with a typo'd role layer: err = %v, want one naming \"wrok\"", err)
+	}
+}
+
+// A layer is a folder directly inside the repo. "../home" would have walked
+// a directory outside the repo as if it were a layer.
+func TestRoleLayerMustBeAFolderName(t *testing.T) {
+	cfg, home := fixture(t) // home is a sibling of the repo
+	cfg.RoleLayers = []string{"../home"}
+	if _, err := Plan(cfg, home, state.State{Files: map[string]string{}}, "darwin", ""); err == nil {
+		t.Fatal("Plan accepted a role layer outside the repo")
+	}
+}
+
+// The documented exception: a repo folder that doesn't exist at all (moved or
+// deleted) still reads as an empty repo, so every managed file is Removed —
+// README "Order matters". Only a missing layer inside a real repo is a typo.
+func TestMissingRepoStillPlansRemovals(t *testing.T) {
+	cfg, home := fixture(t)
+	cfg.RepoDir = filepath.Join(t.TempDir(), "moved-away")
+	mustWrite(t, filepath.Join(home, ".zshrc"), "x")
+	st := state.State{Files: map[string]string{".zshrc": fsutil.Hash([]byte("x"))}}
+	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Removed {
+		t.Fatalf("want Removed, got %v", s)
+	}
+}
+
+// state.json is strata's own file, but it's plain JSON on disk: a path in it
+// that climbs out of $HOME (hand-edited, corrupted) must never be deleted.
+func TestStatePathOutsideHomeIsRefused(t *testing.T) {
+	cfg, home := fixture(t)
+	outside := filepath.Join(filepath.Dir(home), "outside")
+	mustWrite(t, outside, "x")
+	st := state.State{Files: map[string]string{"../outside": fsutil.Hash([]byte("x"))}}
+	items, err := Plan(cfg, home, st, "darwin", "")
+	if err == nil {
+		_, err = Apply(items, home, &st, false)
+	}
+	if err == nil {
+		t.Error("a state entry outside $HOME was planned and applied without error")
+	}
+	if _, statErr := os.Stat(outside); statErr != nil {
+		t.Fatalf("strata deleted a file outside $HOME: %v", statErr)
+	}
+}
+
 func TestUndefinedVarFailsPlan(t *testing.T) {
 	cfg, home := fixture(t)
 	cfg.Vars = nil

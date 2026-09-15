@@ -90,6 +90,11 @@ func loadContext() (*appContext, error) {
 	return &appContext{Paths: p, Cfg: config.Merge(rc, mc), State: st}, nil
 }
 
+// order is this machine's layer stack: base, OS layers, then role layers.
+func (a *appContext) order() []string {
+	return layers.Order(a.Cfg.RoleLayers, runtime.GOOS, layers.ReadOSRelease())
+}
+
 func (a *appContext) plan() ([]engine.Item, error) {
 	return engine.Plan(a.Cfg, a.Paths.Home, a.State, runtime.GOOS, layers.ReadOSRelease())
 }

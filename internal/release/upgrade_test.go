@@ -203,6 +203,11 @@ func TestUpgradeFailsClosed(t *testing.T) {
 		"binary fails the smoke test": func(t *testing.T) releasetest.Release {
 			return releasetest.NewRelease(t, s, Namespace, "2026.9.1", "linux", "amd64", fakeBinary("1999.1.0"))
 		},
+		// "version 2026.9.1" is a prefix of "version 2026.9.10": only an exact
+		// version counts.
+		"binary reports a longer version": func(t *testing.T) releasetest.Release {
+			return releasetest.NewRelease(t, s, Namespace, "2026.9.1", "linux", "amd64", fakeBinary("2026.9.10"))
+		},
 	}
 	for name, mk := range cases {
 		t.Run(name, func(t *testing.T) {

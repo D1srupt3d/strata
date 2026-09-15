@@ -49,6 +49,43 @@ func TestFailedHookIsRetriedOnNextApply(t *testing.T) {
 	}
 }
 
+// A write that fails partway (unwritable folder, full disk) used to lose the
+// hooks of the files already written: nothing was saved, so the next apply
+// saw those files clean and never ran their hooks.
+func TestHooksOfFilesWrittenBeforeAFailureStillRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("hook uses sh, and chmod can't make a Windows folder unwritable")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can write into any folder")
+	}
+	s := sandbox(t)
+	writeFile(t, s.repo("base/.a"), "a\n") // sorts before .locked/x, so it's written first
+	writeFile(t, s.repo("base/.locked/x"), "x\n")
+	writeFile(t, s.repo("dots.toml"), "[hooks]\n\".a\" = \"touch ran\"\n")
+	locked := s.home(".locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) }) // let TempDir clean up
+
+	if _, err := run(t, "apply"); err == nil {
+		t.Fatal("apply into an unwritable folder: want an error")
+	}
+	if err := os.Chmod(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(t, "apply"); err != nil {
+		t.Fatalf("apply after fixing the folder: %v\n%s", err, out)
+	}
+	if !exists(s.home("ran")) {
+		t.Fatal("the hook for .a never ran, though .a was written")
+	}
+}
+
 // containsLine reports whether any single output line contains all parts.
 func containsLine(out string, parts ...string) bool {
 	for _, line := range strings.Split(out, "\n") {

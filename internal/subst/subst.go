@@ -27,11 +27,15 @@ func Tokens(content []byte) []string {
 
 func Apply(content []byte, vars map[string]string) ([]byte, error) {
 	var missing []string
+	seen := map[string]bool{}
 	out := tokenRe.ReplaceAllFunc(content, func(m []byte) []byte {
 		name := string(tokenRe.FindSubmatch(m)[1])
 		v, ok := vars[name]
 		if !ok {
-			missing = append(missing, name)
+			if !seen[name] { // name each undefined var once, however often it's used
+				seen[name] = true
+				missing = append(missing, name)
+			}
 			return m
 		}
 		return []byte(v)

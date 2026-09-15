@@ -15,12 +15,19 @@ func Hash(data []byte) string {
 
 // WriteFileAtomic writes data to path via a temp file + fsync + rename, so
 // neither a crash nor a power cut leaves a half-written or empty file: the
-// data reaches disk before the rename makes it visible. Creates parent
-// directories. Like any rename-into-place, it replaces a symlink at path
-// with a regular file — callers that must preserve links check first.
+// data reaches disk before the rename makes it visible. Creates missing
+// parent directories, as private as the file: 0700 when mode gives group
+// and others nothing (~/.ssh for a 600 config), else 0755; directories that
+// already exist keep their mode. Like any rename-into-place, it replaces a
+// symlink at path with a regular file — callers that must preserve links
+// check first.
 func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dirMode := os.FileMode(0o755)
+	if mode&0o077 == 0 {
+		dirMode = 0o700
+	}
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".strata-tmp-*")

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	"strata/internal/config"
 	"strata/internal/fsutil"
@@ -56,9 +57,22 @@ func inList(s string, list []string) bool {
 	return false
 }
 
+// CheckLayers rejects role layers from machine.toml that aren't a folder in
+// the repo (see layers.CheckRoles). Plan runs it first; so does the TUI,
+// before it walks any layer.
+func CheckLayers(cfg config.Config) error {
+	if err := layers.CheckRoles(cfg.RepoDir, cfg.RoleLayers); err != nil {
+		return fmt.Errorf("machine.toml layers: %w (fix the name, or create the folder)", err)
+	}
+	return nil
+}
+
 // Plan builds the desired file set and classifies every managed path.
 // goos/osRelease are parameters so tests can simulate any platform.
 func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease string) ([]Item, error) {
+	if err := CheckLayers(cfg); err != nil {
+		return nil, err
+	}
 	order := layers.Order(cfg.RoleLayers, goos, osRelease)
 	sources, err := layers.Resolve(cfg.RepoDir, order, cfg.Ignore)
 	if err != nil {
@@ -134,6 +148,11 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 		if _, ok := sources[rel]; ok {
 			continue
 		}
+		// state.json is plain JSON on disk. A path in it that climbs out of
+		// $HOME (hand-edited, corrupted) is never strata's to delete.
+		if !filepath.IsLocal(filepath.FromSlash(rel)) {
+			return nil, fmt.Errorf("the state file lists %q, which is outside your home folder — refusing to touch it (remove that entry from state.json)", rel)
+		}
 		// Ignoring is not removing. A path strata used to write and now
 		// ignores drops out of the plan entirely, so the $HOME copy survives
 		// untouched; classifying it Removed would make one new ignore line
@@ -168,6 +187,13 @@ type ApplyResult struct {
 	Blocked  []Item   // changes refused (drift/conflict/unmanaged/edited-removal)
 }
 
+// Changed reports whether apply touched $HOME at all. It can be true even
+// when Apply returns an error: a write that fails partway leaves the earlier
+// ones in place, and the caller must still record them.
+func (r ApplyResult) Changed() bool {
+	return len(r.Written)+len(r.Chmodded)+len(r.Deleted) > 0
+}
+
 // Blocked reports whether apply refuses this item without --force: the
 // $HOME copy holds content strata didn't write (drifted, conflict,
 // unmanaged); applying would replace a symlink the user set up (writing
@@ -185,6 +211,19 @@ func (it Item) Blocked(st state.State) bool {
 	return false
 }
 
+// BlockedList formats blocked items one per line, as apply's refusal lists
+// them, for any command that must refuse for the same reasons.
+func BlockedList(blocked []Item) string {
+	var b strings.Builder
+	for _, it := range blocked {
+		fmt.Fprintf(&b, "\n  %-9s %s", it.Status, it.Rel)
+		if it.Symlink {
+			b.WriteString(" (a symlink — strata won't replace it; --force swaps in a regular file)")
+		}
+	}
+	return b.String()
+}
+
 // Apply writes Create/Update items, fixes Chmod items' modes, and deletes
 // Removed ones. If any item is Blocked and force is false, it changes
 // NOTHING and returns an error; resolve with 'strata add <file>' (keep
@@ -197,14 +236,7 @@ func Apply(items []Item, homeDir string, st *state.State, force bool) (ApplyResu
 		}
 	}
 	if len(res.Blocked) > 0 && !force {
-		names := ""
-		for _, it := range res.Blocked {
-			names += fmt.Sprintf("\n  %-9s %s", it.Status, it.Rel)
-			if it.Symlink {
-				names += " (a symlink — strata won't replace it; --force swaps in a regular file)"
-			}
-		}
-		return res, fmt.Errorf("refusing to overwrite local changes:%s\nkeep your version with 'strata add <file>', or overwrite with 'strata apply --force'", names)
+		return res, fmt.Errorf("refusing to overwrite local changes:%s\nkeep your version with 'strata add <file>', or overwrite with 'strata apply --force'", BlockedList(res.Blocked))
 	}
 	for _, it := range items {
 		if it.Status == Removed {

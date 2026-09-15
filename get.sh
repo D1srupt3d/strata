@@ -67,9 +67,16 @@ done
 
 # 1. The checksum list must be signed by the strata release key.
 printf 'strata-release namespaces="%s" %s\n' "$NAMESPACE" "$TRUSTED_KEY" >"$tmp/allowed_signers"
-ssh-keygen -Y verify -f "$tmp/allowed_signers" -I strata-release -n "$NAMESPACE" \
-    -s "$tmp/checksums.txt.sig" <"$tmp/checksums.txt" >/dev/null 2>&1 ||
+if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I strata-release -n "$NAMESPACE" \
+    -s "$tmp/checksums.txt.sig" <"$tmp/checksums.txt" >/dev/null 2>"$tmp/verify.err"; then
+    sed 's/^/    /' "$tmp/verify.err" >&2
+    # An ssh-keygen older than OpenSSH 8.1 has no -Y at all: say so, rather
+    # than let it look like a forged release.
+    if grep -qiE '(illegal|unknown|invalid) option' "$tmp/verify.err"; then
+        die "this ssh-keygen can't check signatures (that needs OpenSSH 8.1 or newer; 'ssh -V' shows yours) — nothing installed"
+    fi
     die "signature check FAILED for release $tag — nothing installed"
+fi
 
 # 2. The archive must be exactly the one that was signed.
 want=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")
@@ -80,7 +87,9 @@ have=$(sha256 "$tmp/$archive")
 mkdir "$tmp/x"
 tar -xzf "$tmp/$archive" -C "$tmp/x" strata 2>/dev/null || die "$archive has no strata binary — nothing installed"
 chmod 755 "$tmp/x/strata"
-"$tmp/x/strata" --version >/dev/null 2>&1 || die "the downloaded strata won't run — nothing installed"
+got=$("$tmp/x/strata" --version 2>/dev/null) || die "the downloaded strata won't run — nothing installed"
+[ "$got" = "strata version $version" ] ||
+    die "the downloaded strata reports '$got', not version $version — nothing installed"
 
 # 4. Install atomically (copy next to the target, then rename over it).
 mkdir -p "$BIN_DIR"
