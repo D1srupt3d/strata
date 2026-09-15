@@ -33,11 +33,13 @@ jobs:
         run: go test -race ./...
       # Linters are pinned to exact versions, like the actions above, so a
       # new release can't change what passes without a commit saying so.
-      # govulncheck fails when a known vulnerability reaches code strata
-      # actually calls (a dependency, or the Go version in go.mod).
+      # Both run on every OS: they only analyze code built for the OS they
+      # run on, so a Linux-only run never checks lock_windows.go or the
+      # Windows paths through the standard library. (gofmt is the same on
+      # every OS, so Linux alone is enough for it.) govulncheck fails when a
+      # known vulnerability reaches code strata actually calls — in a
+      # dependency, or in the standard library of the Go version in go.mod.
       - name: staticcheck
-        if: runner.os == 'Linux'
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
       - name: govulncheck
-        if: runner.os == 'Linux'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...

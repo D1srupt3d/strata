@@ -36,10 +36,16 @@ GOOS=linux go build   # cross-compile; also windows, darwin
 sh install.sh         # build + install to ~/.local/bin (STRATA_BIN_DIR overrides)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `gofmt -l`, `go test -race`, staticcheck and govulncheck
-(Linux only), `go vet`, `go build`, `go test` on ubuntu/macos/windows for every push to `main` and
-every PR. The two linters run via `go run pkg@vX.Y.Z`, pinned to exact versions — bump them
-deliberately. Run the same
+CI (`.github/workflows/ci.yml`) runs `gofmt -l` and `go test -race` (Linux only), and `go vet`,
+`go build`, `go test`, staticcheck and govulncheck on ubuntu/macos/windows for every push to `main`
+and every PR. The linters run on every OS because they only analyze code built for the OS they run
+on (`lock_windows.go` is invisible to a Linux run); to check another OS locally, `go install` them
+and run with `GOOS=windows` (a `go run` with `GOOS` set builds a binary this machine can't run). The two linters run via `go run pkg@vX.Y.Z`, pinned to exact versions — bump them
+deliberately. govulncheck scans the standard library of the Go that runs it, and CI (and the
+release build) use the `go` version in `go.mod` — so to match CI locally run it as
+`GOTOOLCHAIN=go<that version> go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`. A newer
+local Go can report clean while CI fails. When it flags the standard library, bump the `go` line
+in `go.mod` to the fixed patch release. Run the same
 gate locally first — the Windows leg is the one that catches path-separator mistakes. Workflow
 actions are pinned to full commit SHAs with a `# vX.Y.Z` comment (Renovate bumps both); keep it
 that way when adding steps.
