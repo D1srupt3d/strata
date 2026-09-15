@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,9 +15,11 @@ import (
 	"strata/internal/state"
 )
 
-// CalVer: YYYY.0M.PATCH — release date plus a counter for multiple
-// releases in the same month.
-var version = "2026.07.1"
+// CalVer YYYY.M.PATCH with an un-padded month (2026.8.0 — GoReleaser
+// enforces semver and rejects 2026.08.0). Release builds and install.sh
+// overwrite this via -X main.version, so the in-source value only shows up
+// in a bare `go build` — hence the -dev suffix.
+var version = "2026.9.0-dev"
 
 // paths resolves where strata looks for things, honoring test/env overrides.
 type paths struct {
@@ -119,9 +122,30 @@ hook, and permission comes from.`,
 	return root
 }
 
-func main() {
-	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+// exitCode lets a command set a non-zero exit status without printing an
+// error — e.g. `status` when files need attention: that's an answer, not a
+// failure.
+type exitCode int
+
+func (c exitCode) Error() string { return fmt.Sprintf("exit status %d", int(c)) }
+
+// exitStatus maps a command's result to the process exit code and the
+// message to print, if any.
+func exitStatus(err error) (code int, msg string) {
+	if err == nil {
+		return 0, ""
 	}
+	var c exitCode
+	if errors.As(err, &c) {
+		return int(c), ""
+	}
+	return 1, "error: " + err.Error()
+}
+
+func main() {
+	code, msg := exitStatus(newRootCmd().Execute())
+	if msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+	os.Exit(code)
 }
