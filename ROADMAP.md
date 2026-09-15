@@ -99,6 +99,27 @@ quarters:
 Still open: vars per layer (below) — the thing that actually bit me on the
 work Mac.
 
+## done — 2026.9.1: updating without a checkout
+
+Updating strata used to mean `git pull` in the repo and `sh install.sh` — so
+every machine needed the source and a Go toolchain. Now `strata upgrade`
+replaces itself with the latest release, and a brand-new machine gets one
+with a single `curl … get.sh | sh`. Neither installs anything it can't prove
+is mine: release CI signs checksums.txt with a dedicated SSH key that lives
+in a GitHub environment only tag builds can open, and strata checks that
+signature — then "is this actually newer", then the checksum, then "does
+the new binary even start" — before it swaps a single byte. Zero new
+dependencies: the signature check is a few dozen lines of standard library.
+I looked hard at Sigstore instead and walked away; it would have nearly
+tripled the dependency tree of a tool whose whole appeal is being small.
+
+The rules from the plan held up: no background update checks, ever;
+Homebrew installs belong to Homebrew; and a binary I built from source is
+mine to update, so `upgrade` leaves it alone. The first CI run after the
+merge caught a very Windows bug — git rewrote the line endings of a signed
+test fixture, so its signature stopped matching — which is exactly why the
+Windows leg exists.
+
 ## soon-ish
 
 **Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
@@ -107,20 +128,29 @@ hand-edit machine.toml. Precedence follows the file stack: defaults → OS
 layer → role layer → machine.toml. The format's decided and the provenance
 plumbing the TUI needs is already in.
 
-**`strata upgrade` (self-updater).** Now that releases exist: check the latest
-tag, download the right binary, verify it against checksums.txt and the
-signed build provenance releases carry since 2026.9.0 (never skipping that —
-it's replacing an executable, and a checksum shipped next to the binary only
-proves the download isn't corrupted), and atomically swap it over
-os.Executable(), same temp-file-and-rename trick apply already uses. Two
-rules I've already decided: if the binary was installed by Homebrew, refuse
-and say `brew upgrade strata` instead of fighting brew's bookkeeping; and
-no silent background auto-update, ever — a tool that rewrites my shell
-config updates when I tell it to. Maybe a one-line "update available"
-notice in the TUI (cached, checked at most daily) so I actually find out.
+**Homebrew tap.** The loose end from 2026.8.0. Now that releases are signed,
+GoReleaser can publish a formula to a `homebrew-strata` tap on every tag,
+and `strata upgrade` already knows to step aside for Homebrew installs.
+Needs its own repo and a token that can write to only that repo.
 
-**Bootstrap the personal Mac for real.** `strata init` from a git URL has
-only ever run against test fixtures. The first real second-machine setup
+**Scriptable output.** `strata status --json` (and probably `diff --json`) so
+a shell prompt or a script can ask "anything drifted?" without parsing text
+meant for humans. `status` already exits 1 when something needs attention;
+this is the structured version of the same answer.
+
+**Add whole directories.** `strata add ~/.config/nvim` should adopt every
+file under it in one go instead of me running `add` file by file — using the
+same ignore rules apply does, so editor scratch and caches don't sneak in.
+
+**Rehearse a key rotation.** The release-signing key is a single point of
+trust. The plan is written down (ship one release that trusts both keys,
+then switch), but I'd rather do it once calmly than for the first time in a
+hurry — and decide what "the key leaked" really looks like beyond
+"reinstall with get.sh".
+
+**Bootstrap the personal Mac for real.** Installing is one `get.sh` line
+now, but `strata init` from a git URL has only ever run against test
+fixtures. The first real second-machine setup
 will surface something dumb, it always does. I want that pain while the
 code is fresh in my head.
 
@@ -151,6 +181,17 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
   happens it'll be opt-in and obvious, not default.
 - **`strata doctor`** — checks your setup and says what's wrong: repo missing,
   machine.toml stale, state file referencing files that don't exist, etc.
+- **Windows installer** — a `get.ps1` twin of get.sh, so Windows doesn't mean
+  downloading a zip by hand. Waiting on me using strata on Windows for more
+  than CI.
+- **opt-in update notice** — a cached, at-most-daily "update available" line
+  in the TUI. Off by default; the no-background-network rule stands.
+- **`strata upgrade --version`** — deliberately install a specific older
+  signed release to back out a bad one. Plain `upgrade` still never
+  downgrades; this would be the explicit, eyes-open exception.
+- **lint in CI** — staticcheck (or golangci-lint) for the class of bugs `go
+  vet` misses. Cheap, but it's another moving part in the pipeline, so it
+  earns its place first.
 
 ## not doing
 
