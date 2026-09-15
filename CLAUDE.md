@@ -9,7 +9,7 @@ strata is a cross-platform dotfiles manager (macOS/Linux/Windows). A dotfiles re
 templates. It tracks the SHA-256 of everything it wrote so it can distinguish "the repo changed"
 from "you edited the file in `$HOME`" from "both" — and refuses to clobber local edits.
 
-Read `README.md` for the user-facing model (layer stacking, the seven file statuses, `dots.toml`
+Read `README.md` for the user-facing model (layer stacking, the eight file statuses, `dots.toml`
 / `machine.toml` schemas). `ROADMAP.md` records design decisions, including an explicit
 **"not doing"** list — templates, symlink mode, partial-file merging, non-`$HOME` targets,
 wrapping git, built-in secrets encryption. Don't propose those without acknowledging the
@@ -22,6 +22,7 @@ No Makefile, no task runner — plain Go, single module (`module strata`, Go 1.2
 ```sh
 go build -o strata .                  # build
 go test ./...                         # all tests (each runs in its own t.TempDir())
+go test -race ./...                   # race detector (CI runs it on Linux)
 go vet ./... && gofmt -l .            # lint/format gate (gofmt must print nothing)
 
 go test ./internal/engine -run TestPlanStatuses -v   # single test
@@ -32,13 +33,16 @@ GOOS=linux go build   # cross-compile; also windows, darwin
 sh install.sh         # build + install to ~/.local/bin (STRATA_BIN_DIR overrides)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `gofmt -l` (Linux only), `go vet`, `go build`, `go test` on
-ubuntu/macos/windows for every push to `main` and every PR. Run the same gate locally first —
-the Windows leg is the one that catches path-separator mistakes.
+CI (`.github/workflows/ci.yml`) runs `gofmt -l` and `go test -race` (Linux only), `go vet`,
+`go build`, `go test` on ubuntu/macos/windows for every push to `main` and every PR. Run the same
+gate locally first — the Windows leg is the one that catches path-separator mistakes. Workflow
+actions are pinned to full commit SHAs with a `# vX.Y.Z` comment (Renovate bumps both); keep it
+that way when adding steps.
 
 Releases are tag-driven: pushing a `v*` tag runs `release.yml` → GoReleaser (darwin/linux/windows
-× amd64/arm64). Tags must be **un-padded** CalVer — `v2026.8.0`, not `v2026.08.0`; GoReleaser
-enforces semver and rejects a zero-padded month.
+× amd64/arm64), then attaches signed build provenance to every archive and `checksums.txt`
+(verify with `gh attestation verify <file> --repo D1srupt3d/strata`). Tags must be **un-padded**
+CalVer — `v2026.8.0`, not `v2026.08.0`; GoReleaser enforces semver and rejects a zero-padded month.
 
 ## Architecture
 
@@ -47,10 +51,10 @@ main.go, cmd_*.go     cobra CLI, one file per command (cmd_tui.go = bare-strata 
 internal/config/      dots.toml + machine.toml parsing, var merging
 internal/layers/      OS detection + layer resolution (rel path → winning source file)
 internal/subst/       {{var}} substitution, fail-loud on undefined
-internal/perms/       permission globs (doublestar; longest pattern wins)
-internal/state/       last-applied-hash store (state.json)
+internal/perms/       permission globs (doublestar; longest pattern wins, equal-length disagreement errors)
+internal/state/       state.json: last-applied hashes, pending-hook queue, format version, file lock
 internal/engine/      Plan (status classification) → Apply → RunHooks
-internal/fsutil/      SHA-256 + atomic write (temp file + rename)
+internal/fsutil/      SHA-256 + atomic write (temp file + fsync + rename)
 internal/tui/         read-only Bubble Tea TUI: snapshot.go (data) / model.go / view.go
                       theme.go holds every color and lipgloss style — no literals elsewhere
 ```
@@ -66,7 +70,10 @@ layers.Order(roles, goos, osRelease)  →  layers.Resolve(repoDir, order)   # re
   →  compare desired / current / last-applied-hash  →  engine.FileStatus
 ```
 
-`engine.Apply` then writes only `Create`/`Update` items and deletes `Removed` ones.
+`engine.Apply` then writes `Create`/`Update` items, chmods `Chmod` ones, and deletes `Removed`
+ones. Every command that applies (`apply`, `edit`, `rm`, `init`, `sync`) goes through `runApply` in
+[cmd_apply.go](cmd_apply.go) — never by invoking another command's `RunE`. Var provenance
+(`Config.VarFrom`) is decided in `config.Merge`; the TUI displays it and must not re-derive it.
 
 ### Invariants to preserve
 
@@ -75,11 +82,21 @@ layers.Order(roles, goos, osRelease)  →  layers.Resolve(repoDir, order)   # re
   `layers.ReadOSRelease()`. This is what lets tests exercise mac/arch/windows behavior on any
   host, and the TUI resolve all four OS columns at once. Never call `runtime.GOOS` inside
   `internal/` resolution code.
-- **All-or-nothing apply.** `engine.Apply` collects every blocked item (`drifted` / `conflict` /
-  `unmanaged`, plus a `removed` file edited since the last apply) in a first pass and returns an
-  error *before* writing anything. A half-applied state must stay impossible.
-- **Writes go through `fsutil.WriteFileAtomic`.** Temp file + `Chmod` + `rename`. Applies to
-  `state.json` too.
+- **All-or-nothing apply.** `engine.Apply` collects every blocked item in a first pass and returns
+  an error *before* writing anything. A half-applied state must stay impossible. `Item.Blocked` is
+  the single definition of "blocked" (drifted / conflict / unmanaged, an update or chmod that would
+  replace a `$HOME` symlink, a removed file edited since the last apply) — `--dry-run` uses it too.
+- **Writes go through `fsutil.WriteFileAtomic`.** Temp file + `Chmod` + fsync + `rename`. Applies
+  to `state.json` too.
+- **Hooks are queued before they run.** `runApply` saves the pending-hook queue to state *before*
+  running hooks and clears each only on success, so a failed or interrupted hook reruns on the
+  next apply. Hooks run with `$HOME` as the working directory.
+- **State mutations lock, then re-read.** Anything that saves state takes `state.Lock` and loads
+  state again under it; saving a copy loaded before the lock would drop another process's
+  updates.
+- **Modes are enforced only when explicit.** `Chmod` fires only for an explicit `[permissions]`
+  rule or a missing exec bit, and never for `goos == "windows"`; the 644 default must never loosen
+  a mode the user tightened by hand.
 - **Rel paths are forward-slash everywhere** — map keys, state.json, `dots.toml` patterns.
   Convert with `filepath.FromSlash` only at the moment you touch disk (`filepath.Join(home,
   filepath.FromSlash(rel))`). Windows support depends on this discipline.
@@ -95,8 +112,9 @@ layers.Order(roles, goos, osRelease)  →  layers.Resolve(repoDir, order)   # re
 ### Gotcha: `FileStatus`
 
 `engine.FileStatus` is an iota enum whose `String()` is a **positional array literal**. Adding
-or reordering a status silently misnames every later one. Update the const block, the array, and
-the status table in `README.md` together.
+or reordering a status silently misnames every later one. Append new statuses at the end, and
+update the const block, the array, the TUI's `statusGlyph`/`driftLabel`, `status --help`, and the
+status table in `README.md` together.
 
 ## Conventions
 
@@ -106,10 +124,15 @@ the status table in `README.md` together.
 - Each command lives in `cmd_<name>.go` exposing `newXxxCmd() *cobra.Command`, registered in
   `newRootCmd()`. Cobra `Long`/`Example` text is substantive here (it's the real help); keep it
   in sync when behavior changes.
-- Tests build fixture repos with a local `mk(rel, content)` helper into `t.TempDir()` and set
-  `STRATA_HOME` / `STRATA_CONFIG` / `STRATA_STATE` via `t.Setenv`. Those env vars (plus
-  `STRATA_BIN`, which `uninstall` deletes) are the sandbox seam — use them rather than mocking
-  the filesystem, and never let a test touch the real `$HOME`.
+- CLI tests use [helpers_test.go](helpers_test.go): `sandbox(t, layers...)` builds an isolated
+  repo + home in `t.TempDir()` and sets `STRATA_HOME` / `STRATA_CONFIG` / `STRATA_STATE`;
+  `writeFile`/`readFile` fail the test on setup errors (never ignore them); `runIn` feeds stdin
+  to prompts; `isolateGit` must wrap any test that runs git — it blanks the developer's global
+  config, whose commit signing would otherwise pop a password-manager prompt. Those env vars
+  (plus `STRATA_BIN`, which `uninstall` deletes) are the sandbox seam — use them rather than
+  mocking the filesystem, and never let a test touch the real `$HOME`.
+- A command reports "needs attention" with `exitCode(n)` (exit status, no `error:` line — see
+  `status`); real failures return a normal error.
 - Version lives in `var version` in [main.go](main.go) — CalVer `YYYY.M.PATCH`. It must stay a
   `var`, not a `const`: release builds overwrite it via GoReleaser's
   `-X main.version={{.Version}}` ldflag, and `-X` silently does nothing to a `const`.
