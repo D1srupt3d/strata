@@ -1,7 +1,7 @@
 #!/bin/sh
 # strata installer: builds the binary, copies it to ~/.local/bin, and makes
-# sure that directory is on your PATH (appends one line to your shell rc,
-# only if it isn't there already). Safe to re-run any time.
+# sure that directory is on your PATH (appends one line to your login
+# profile, only if it isn't there already). Safe to re-run any time.
 #
 # Override the install dir with:  STRATA_BIN_DIR=/somewhere sh install.sh
 set -eu
@@ -37,11 +37,14 @@ case ":$PATH:" in
     ;;
 esac
 
-# Pick the rc file for the user's login shell.
+# Pick the login profile for the user's shell — deliberately NOT the rc file
+# (.zshrc/.bashrc): with strata those are usually managed dotfiles, and an
+# installer edit there shows up as local drift that blocks the first apply.
+# PATH belongs in the login profile anyway.
 rc="$HOME/.profile"
 case "${SHELL:-}" in
-*/zsh) rc="$HOME/.zshrc" ;;
-*/bash) rc="$HOME/.bashrc" ;;
+*/zsh) rc="$HOME/.zprofile" ;;
+*/bash) [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile" ;;
 esac
 
 line="export PATH=\"$BIN_DIR:\$PATH\""

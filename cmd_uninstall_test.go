@@ -94,10 +94,49 @@ func TestUninstallYesRemovesEverything(t *testing.T) {
 	}
 }
 
+// install.sh writes the PATH line to a login profile (~/.zprofile for zsh)
+// rather than an rc file strata usually manages; uninstall must find it
+// there too, and leave the user's own lines alone.
+func TestUninstallCleansPathLineFromZprofile(t *testing.T) {
+	home, _, _, _, _ := setupInstall(t)
+	zprofile := filepath.Join(home, ".zprofile")
+	writeFile(t, zprofile, "export LANG=en_US.UTF-8\n\n# added by strata install.sh\nexport PATH=\"$HOME/.local/bin:$PATH\"\n")
+
+	if out, err := run(t, "uninstall", "--yes"); err != nil {
+		t.Fatalf("uninstall: %v\n%s", err, out)
+	}
+	body := readFile(t, zprofile)
+	if strings.Contains(body, rcMarker) || strings.Contains(body, ".local/bin") {
+		t.Errorf("installer PATH line left in .zprofile:\n%s", body)
+	}
+	if !strings.Contains(body, "export LANG") {
+		t.Errorf("uninstall clobbered the user's .zprofile content:\n%s", body)
+	}
+}
+
+// The state lock lives next to state.json. Leaving it behind is litter, and
+// it also keeps the otherwise-empty state dir from being cleaned up.
+func TestUninstallRemovesStateLock(t *testing.T) {
+	home, _, _, state, _ := setupInstall(t)
+	writeFile(t, state+".lock", "")
+
+	if out, err := run(t, "uninstall", "--yes"); err != nil {
+		t.Fatalf("uninstall: %v\n%s", err, out)
+	}
+	if exists(state + ".lock") {
+		t.Error("state.json.lock left behind")
+	}
+	if exists(filepath.Join(home, ".local", "state", "strata")) {
+		t.Error("state dir left behind")
+	}
+}
+
 func TestUninstallNothingToRemove(t *testing.T) {
 	tmp := t.TempDir()
 	home := filepath.Join(tmp, "home")
-	os.MkdirAll(home, 0o755)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("STRATA_HOME", home)
 	t.Setenv("STRATA_BIN", filepath.Join(home, "nope"))
 	t.Setenv("STRATA_CONFIG", filepath.Join(home, "nope.toml"))
