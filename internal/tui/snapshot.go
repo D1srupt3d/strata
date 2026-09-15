@@ -180,7 +180,7 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		colFiles[name] = m
 	}
 
-	badgeFor := func(rel string) (string, string, bool) {
+	badgeFor := func(rel string) (string, string, bool, error) {
 		var b []string
 		if inList(rel, cfg.Substitute) {
 			b = append(b, "{{ }}")
@@ -189,11 +189,14 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		if hook != "" {
 			b = append(b, "⚙")
 		}
-		rule, hasRule := perms.RuleFor(rel, cfg.Permissions)
+		rule, hasRule, err := perms.RuleFor(rel, cfg.Permissions)
+		if err != nil {
+			return "", "", false, err
+		}
 		if hasRule {
 			b = append(b, rule)
 		}
-		return strings.Join(b, " "), rule, hasRule
+		return strings.Join(b, " "), rule, hasRule, nil
 	}
 
 	// Files tab rows: union across all OS resolutions.
@@ -226,7 +229,10 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 				r.Providers = append(r.Providers, c)
 			}
 		}
-		badge, rule, hasRule := badgeFor(rel)
+		badge, rule, hasRule, err := badgeFor(rel)
+		if err != nil {
+			return nil, err
+		}
 		r.Badge = badge
 		r.Hook = cfg.Hooks[rel]
 		if hasRule {
@@ -245,11 +251,11 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 			if src != "" {
 				if content, err := os.ReadFile(src); err == nil {
 					for _, name := range subst.Tokens(content) {
-						vu := VarUse{Name: name, Value: cfg.Vars[name], From: "dots.toml"}
-						if _, ok := mc.Vars[name]; ok {
-							vu.From = "machine.toml"
+						from := cfg.VarFrom[name]
+						if from == "" {
+							from = "undefined"
 						}
-						r.SubstVars = append(r.SubstVars, vu)
+						r.SubstVars = append(r.SubstVars, VarUse{Name: name, Value: cfg.Vars[name], From: from})
 					}
 				}
 			}
@@ -286,7 +292,10 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 					}
 				}
 			}
-			badge, _, _ := badgeFor(rel)
+			badge, _, _, err := badgeFor(rel)
+			if err != nil {
+				return nil, err
+			}
 			var b []string
 			if overrides {
 				b = append(b, "▲")
@@ -300,33 +309,26 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		lyrs = append(lyrs, ly)
 	}
 
-	// Vars tab.
-	varNames := map[string]bool{}
-	for n := range rc.Vars {
-		varNames[n] = true
-	}
-	for n := range mc.Vars {
-		varNames[n] = true
-	}
-	var names []string
-	for n := range varNames {
+	// Vars tab: values and provenance come from config.Merge; only the
+	// dots.toml default is looked up here, to show what an override replaced.
+	names := make([]string, 0, len(cfg.Vars))
+	for n := range cfg.Vars {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	var vars []VarRow
 	for _, n := range names {
+		vr := VarRow{Name: n, Value: cfg.Vars[n], From: cfg.VarFrom[n]}
 		def, hasDef := rc.Vars[n]
-		mval, hasM := mc.Vars[n]
-		vr := VarRow{Name: n}
 		switch {
-		case hasM && hasDef && mval != def:
-			vr.Value, vr.From, vr.Default, vr.Overridden = mval, "machine.toml", def, true
-		case hasM && hasDef:
-			vr.Value, vr.From, vr.Default = mval, "machine.toml", "same"
-		case hasM:
-			vr.Value, vr.From, vr.Default = mval, "machine.toml", "—"
+		case vr.From == "dots.toml":
+			vr.Default = "same"
+		case !hasDef:
+			vr.Default = "—"
+		case def == vr.Value:
+			vr.Default = "same"
 		default:
-			vr.Value, vr.From, vr.Default = def, "dots.toml", "same"
+			vr.Default, vr.Overridden = def, true
 		}
 		vars = append(vars, vr)
 	}
