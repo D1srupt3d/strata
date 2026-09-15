@@ -31,3 +31,13 @@ jobs:
       - name: race detector
         if: runner.os == 'Linux'
         run: go test -race ./...
+      # Linters are pinned to exact versions, like the actions above, so a
+      # new release can't change what passes without a commit saying so.
+      # govulncheck fails when a known vulnerability reaches code strata
+      # actually calls (a dependency, or the Go version in go.mod).
+      - name: staticcheck
+        if: runner.os == 'Linux'
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
