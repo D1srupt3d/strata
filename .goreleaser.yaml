@@ -10,7 +10,9 @@ builds:
     goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      # channel=release marks official builds; only these `strata upgrade`
+      # themselves (source builds default to "source" — see main.go).
+      - -s -w -X main.version={{.Version}} -X main.channel=release
 
 archives:
   - formats: [tar.gz]
@@ -20,6 +22,17 @@ archives:
 
 checksum:
   name_template: checksums.txt
+
+# Sign checksums.txt with the strata release key (an SSH key), producing
+# checksums.txt.sig. release.yml writes the key to STRATA_RELEASE_KEY_FILE
+# from the `release` environment. `strata upgrade` and get.sh verify this
+# signature against the public key in internal/release/release_key.pub,
+# under the strata-release namespace, and refuse any release where it fails.
+signs:
+  - artifacts: checksum
+    cmd: ssh-keygen
+    args: ["-Y", "sign", "-n", "strata-release", "-f", "{{ .Env.STRATA_RELEASE_KEY_FILE }}", "${artifact}"]
+    signature: "${artifact}.sig"
 
 changelog:
   sort: asc
