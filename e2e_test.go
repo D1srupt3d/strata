@@ -23,11 +23,11 @@ func run(t *testing.T, args ...string) (string, error) {
 func TestEndToEnd(t *testing.T) {
 	tmp := t.TempDir()
 	home, repo := filepath.Join(tmp, "home"), filepath.Join(tmp, "repo")
-	os.MkdirAll(home, 0o755)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	mk := func(rel, content string) {
-		p := filepath.Join(repo, filepath.FromSlash(rel))
-		os.MkdirAll(filepath.Dir(p), 0o755)
-		os.WriteFile(p, []byte(content), 0o644)
+		writeFile(t, filepath.Join(repo, filepath.FromSlash(rel)), content)
 	}
 	mk("dots.toml", "substitute = [\".gitconfig\"]\n[vars]\nemail = \"default@example.com\"\n[permissions]\n\".ssh/**\" = \"600\"\n")
 	mk("base/.zshrc", "export EDITOR=vim\n")
@@ -36,8 +36,8 @@ func TestEndToEnd(t *testing.T) {
 	t.Setenv("STRATA_HOME", home)
 	t.Setenv("STRATA_CONFIG", filepath.Join(tmp, "machine.toml"))
 	t.Setenv("STRATA_STATE", filepath.Join(tmp, "state.json"))
-	os.WriteFile(filepath.Join(tmp, "machine.toml"),
-		[]byte("repo = \""+filepath.ToSlash(repo)+"\"\nlayers = []\n[vars]\nemail = \"work@cfs.energy\"\n"), 0o644)
+	writeFile(t, filepath.Join(tmp, "machine.toml"),
+		"repo = \""+filepath.ToSlash(repo)+"\"\nlayers = []\n[vars]\nemail = \"work@cfs.energy\"\n")
 
 	// 1. fresh apply: substitution, permissions
 	out, err := run(t, "apply")
@@ -59,7 +59,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// 2. drift → status → refuse → add absorbs
-	os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export EDITOR=nvim\n"), 0o644)
+	writeFile(t, filepath.Join(home, ".zshrc"), "export EDITOR=nvim\n")
 	out, _ = run(t, "status")
 	if !strings.Contains(out, "drifted") {
 		t.Fatalf("status: %s", out)

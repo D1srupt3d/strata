@@ -17,11 +17,18 @@ func fixture(t *testing.T) (config.RepoConfig, config.MachineConfig, string) {
 	t.Helper()
 	root := t.TempDir()
 	repo, home := filepath.Join(root, "repo"), filepath.Join(root, "home")
-	os.MkdirAll(home, 0o755)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	mk := func(rel, content string) {
+		t.Helper()
 		p := filepath.Join(repo, filepath.FromSlash(rel))
-		os.MkdirAll(filepath.Dir(p), 0o755)
-		os.WriteFile(p, []byte(content), 0o644)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	mk("base/.zshrc", "export EDITOR=nvim\n")
 	mk("base/.gitconfig", "[user]\n\temail = {{email}}\n")

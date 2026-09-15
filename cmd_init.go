@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"strata/internal/config"
 	"strata/internal/fsutil"
 )
 
@@ -26,8 +28,10 @@ The first apply never overwrites existing files it didn't write — it
 stops and lists them so you can 'strata add' the keepers and --force the
 rest.
 
-If your repo uses [vars], add per-machine overrides to machine.toml
-afterwards under a [vars] section.`,
+If your repo uses [vars], init lists the ones running on their dots.toml
+defaults; override any of them per machine under [vars] in machine.toml.
+It also warns when the repo isn't a git clone, since 'strata sync' needs
+one.`,
 		Example: `  strata init git@github.com:you/dotfiles.git
   strata init --repo ~/dotfiles --layers work
   strata init --repo ~/dotfiles --layers ""      # no role layers`,
@@ -44,7 +48,7 @@ afterwards under a [vars] section.`,
 					repoDir = filepath.Join(p.Home, "dotfiles")
 				}
 				clone := exec.Command("git", "clone", args[0], repoDir)
-				clone.Stdout, clone.Stderr = os.Stdout, os.Stderr
+				clone.Stdout, clone.Stderr = cmd.OutOrStdout(), cmd.ErrOrStderr()
 				if err := clone.Run(); err != nil {
 					return fmt.Errorf("git clone failed: %w", err)
 				}
@@ -59,9 +63,18 @@ afterwards under a [vars] section.`,
 			if err != nil {
 				return err
 			}
+			// Validate the repo's config before writing anything for this
+			// machine: a broken dots.toml should fail here, not mid-apply.
+			rc, err := config.LoadRepoConfig(abs)
+			if err != nil {
+				return err
+			}
 
 			roles := splitCSV(layersFlag)
-			if layersFlag == "" {
+			// Changed, not == "": the documented `--layers ""` means "no role
+			// layers, don't ask", which an empty-value check can't tell apart
+			// from omitting the flag.
+			if !cmd.Flags().Changed("layers") {
 				fmt.Fprint(cmd.OutOrStdout(), "role layers (comma-separated, e.g. work — empty for none): ")
 				line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
 				roles = splitCSV(line)
@@ -80,17 +93,40 @@ afterwards under a [vars] section.`,
 			if err := fsutil.WriteFileAtomic(p.Machine, []byte(b.String()), 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", p.Machine)
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "wrote %s\n", p.Machine)
+			if !isGitRepo(abs) {
+				fmt.Fprintf(out, "warning: %s is not a git repository — apply works, but 'strata sync' (git pull) won't until it's a git clone\n", abs)
+			}
+			if len(rc.Vars) > 0 {
+				names := make([]string, 0, len(rc.Vars))
+				for n := range rc.Vars {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				fmt.Fprintf(out, "note: these vars use their dots.toml defaults on this machine — override any of them under [vars] in %s:\n", p.Machine)
+				for _, n := range names {
+					fmt.Fprintf(out, "  %s = %q\n", n, rc.Vars[n])
+				}
+			}
 
-			apply := newApplyCmd()
-			apply.SetOut(cmd.OutOrStdout())
-			return apply.RunE(apply, nil)
+			app, err := loadContext()
+			if err != nil {
+				return err
+			}
+			return runApply(app, cmd.OutOrStdout(), applyOpts{})
 		},
 	}
 	cmd.Flags().StringVar(&repoFlag, "repo", "", "use an existing local repo instead of cloning")
 	cmd.Flags().StringVar(&dirFlag, "dir", "", "clone destination (default ~/dotfiles)")
 	cmd.Flags().StringVar(&layersFlag, "layers", "", "role layers, comma-separated (skips prompt)")
 	return cmd
+}
+
+// isGitRepo reports whether dir is inside a git work tree — where
+// 'strata sync' can git pull.
+func isGitRepo(dir string) bool {
+	return exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree").Run() == nil
 }
 
 func splitCSV(s string) []string {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"os/exec"
 
 	"github.com/spf13/cobra"
@@ -23,13 +22,16 @@ git as usual.`,
 				return err
 			}
 			pull := exec.Command("git", "-C", app.Cfg.RepoDir, "pull", "--ff-only")
-			pull.Stdout, pull.Stderr = os.Stdout, os.Stderr
+			pull.Stdout, pull.Stderr = cmd.OutOrStdout(), cmd.ErrOrStderr()
 			if err := pull.Run(); err != nil {
 				return err
 			}
-			apply := newApplyCmd()
-			apply.SetOut(cmd.OutOrStdout())
-			return apply.RunE(apply, nil)
+			// Reload: the pull may have changed dots.toml (vars, hooks,
+			// permissions), and this apply must use the pulled version.
+			if app, err = loadContext(); err != nil {
+				return err
+			}
+			return runApply(app, cmd.OutOrStdout(), applyOpts{})
 		},
 	}
 }

@@ -43,9 +43,9 @@ And running **bare `strata`** opens a read-only [terminal UI](#the-tui-bare-stra
 sh install.sh
 ```
 
-That builds the binary, copies it to `~/.local/bin/strata`, and — if that directory isn't on your `PATH` — appends one `export PATH=...` line to your shell rc (`.zshrc`/`.bashrc`/`.profile`, matched to your `$SHELL`). It's idempotent: re-run it any time to upgrade; it never adds the line twice. `STRATA_BIN_DIR=/somewhere sh install.sh` overrides the destination.
+That builds the binary, copies it to `~/.local/bin/strata`, and — if that directory isn't on your `PATH` — appends one `export PATH=...` line to your login profile (`~/.zprofile` for zsh; `~/.bash_profile` if it exists, else `~/.profile`). It's idempotent: re-run it any time to upgrade; it never adds the line twice. `STRATA_BIN_DIR=/somewhere sh install.sh` overrides the destination.
 
-> **If your shell rc is itself managed by your dotfiles** (it will be, eventually — that's the point of strata), put the `export PATH="$HOME/.local/bin:$PATH"` line in your repo's `base/.zshrc` instead, so the installer finds it already present and leaves your rc alone.
+> The installer deliberately never edits `.zshrc`/`.bashrc`: with strata those are managed dotfiles, and an installer edit there would show up as local drift that blocks your first apply. Putting `export PATH="$HOME/.local/bin:$PATH"` in your repo's `base/.zshrc` is still the tidiest option — then the installer finds it on your `PATH` and touches nothing.
 
 Manual alternative: `go build -o strata .` and move the binary anywhere on your `PATH`. On Windows: `go build -o strata.exe .` and place it in a directory listed in your `Path` environment variable.
 
@@ -136,7 +136,7 @@ The repo itself is identical on every machine. Change a machine's role by editin
 
 ### File statuses
 
-Everything strata tells you is in terms of six statuses per managed file:
+Everything strata tells you is in terms of eight statuses per managed file:
 
 | Status | Meaning | What `apply` does |
 |---|---|---|
@@ -147,6 +147,7 @@ Everything strata tells you is in terms of six statuses per managed file:
 | `conflict` | Both the repo *and* your home copy changed | **Refuses** (inspect with `diff`, then `add` or `--force`) |
 | `unmanaged` | File exists but strata never wrote it (typical on first apply) | **Refuses** (adopt with `add`, or `--force`) |
 | `removed` | strata wrote it before, but no layer provides it anymore | Deletes it from home (**refuses** if you edited it since the last apply, unless `--force`) |
+| `chmod` | Content matches, but an explicit `[permissions]` rule — or the repo copy's executable bit — disagrees with the file's mode | Fixes the mode only: no rewrite, no hook. (With no rule, a mode you tightened by hand is left alone. Never reported on Windows.) |
 
 ---
 
@@ -222,7 +223,7 @@ wrote .zshrc
 hook [.Brewfile]: brew bundle --file=~/.Brewfile
 ```
 
-- `--dry-run` / `-n` — print what would be written, write nothing
+- `--dry-run` / `-n` — show exactly what apply would do, file by file (`would write`, `would chmod`, `would remove`, `would hook`, or `blocked` with the reason and the way out), and write nothing. If anything is blocked it says so: apply is all-or-nothing, so one blocked file means nothing gets written.
 - `--force` — also overwrite `drifted` / `conflict` / `unmanaged` files (take the repo's version)
 
 If **any** file is drifted/conflicted/unmanaged and `--force` isn't given, apply writes **nothing at all** — it's all-or-nothing, so a half-applied state can't happen:
@@ -235,6 +236,10 @@ keep your version with 'strata add <file>', or overwrite with 'strata apply --fo
 ```
 
 Re-running apply when everything is clean prints `nothing to do` — it's always safe to run.
+
+Hooks run in `$HOME`, after every write has succeeded. A hook that fails (or is interrupted) stays **pending** in the state file: `status` lists it, and the next `apply` retries it — even though its file already reads clean — until it succeeds.
+
+A `$HOME` dotfile that is a **symlink** (into Dropbox, another tool's folder, …) is never silently replaced: apply refuses it like a drifted file, and `--force` swaps in a regular file.
 
 ### `strata status`
 
@@ -251,6 +256,10 @@ $ strata status        # when everything matches
 clean: 14 files up to date
 ```
 
+A hook that failed last time shows up as `hook      .Brewfile (pending: …)` until an apply retries it successfully.
+
+Exit status is `0` when everything is clean and `1` when anything needs attention (no `error:` line — it's an answer, not a failure), so it composes in scripts and prompts: `strata status || strata diff`.
+
 ### `strata diff`
 
 Unified diff of every non-clean file: `home/<file>` (what's on disk now) against `repo/<file>` (what apply would write). Because it compares in both directions, edits you made directly in `$HOME` show up too — as lines apply would *remove*:
@@ -266,7 +275,7 @@ $ strata diff
 
 ### `strata edit <file>`
 
-Opens the **winning layer's source file** in `$EDITOR` (falls back to `vi`), then shows the diff and offers to apply:
+Opens the **winning layer's source file** in your editor — `$VISUAL`, else `$EDITOR`, else `vi` — then shows the diff and offers to apply. The editor setting may include arguments; GUI editors need their wait flag (`EDITOR="code --wait"`), or strata shows the diff before you've made your edit.
 
 ```
 $ strata edit .gitconfig      # on a work machine, opens ~/dotfiles/work/.gitconfig
@@ -296,7 +305,7 @@ added .zshrc → base/.zshrc
 
 Path forms all work: `strata add .zshrc`, `strata add ~/.zshrc`, `strata add /Users/you/.config/foo`. Files outside your home directory are rejected.
 
-- `--layer mac` — put the file in a specific layer instead of the default (the currently-winning layer, or `base` for new files)
+- `--layer mac` — put the file in a specific layer instead of the default (the currently-winning layer, or `base` for new files). If the repo can't be planned right now (say, an undefined `{{var}}`), `add` without `--layer` refuses rather than guess `base` — which could push a work-only file to every machine. Fix the error, or name the layer.
 - If the file is on the `substitute` list, add warns you: the copy you just captured contains the **expanded** values, so re-insert the `{{tokens}}` by hand afterwards (`strata edit <file>`).
 
 ### `strata init [git-url]`
@@ -308,6 +317,8 @@ strata init git@github.com:you/dotfiles.git   # clone to ~/dotfiles (--dir to ch
 strata init --repo ~/dotfiles --layers work   # use an existing local repo, skip the prompt
 strata init --repo ~/dotfiles --layers ""     # no role layers
 ```
+
+`--layers ""` means "no role layers" and skips the prompt. After writing `machine.toml`, init warns if the repo isn't a git clone (apply works, but `strata sync` needs `git pull`) and lists every `[vars]` entry still on its `dots.toml` default — override any of them under `[vars]` in `machine.toml`.
 
 ### `strata sync`
 
@@ -331,7 +342,7 @@ Deleting a layer file by hand (or via `git rm` + `sync` on another machine) work
 
 ### `strata uninstall`
 
-Removes strata itself — the binary, `~/.config/strata/machine.toml`, `~/.local/state/strata/state.json`, and the `export PATH` line `install.sh` added to your shell rc. It **does not** touch the dotfiles strata copied into `$HOME` (those are ordinary files now) or your dotfiles repo — delete those yourself if you want them gone.
+Removes strata itself — the binary, `~/.config/strata/machine.toml`, `~/.local/state/strata/state.json` (and its lock file), and the `export PATH` line `install.sh` added to your shell profile. It **does not** touch the dotfiles strata copied into `$HOME` (those are ordinary files now) or your dotfiles repo — delete those yourself if you want them gone.
 
 ```
 $ strata uninstall
@@ -339,7 +350,7 @@ This will remove:
   ~/.local/state/strata/state.json
   ~/.config/strata/machine.toml
   ~/.local/bin/strata
-  PATH line in ~/.zshrc
+  PATH line in ~/.zprofile
 
 Your dotfiles in $HOME and your dotfiles repo are left untouched.
 
@@ -347,7 +358,7 @@ Remove these? [y/N]: y
 removed ~/.local/state/strata/state.json
 removed ~/.config/strata/machine.toml
 removed ~/.local/bin/strata
-cleaned PATH line from ~/.zshrc
+cleaned PATH line from ~/.zprofile
 
 strata uninstalled. Open a new terminal (or run 'hash -r') to clear the cached command.
 ```
@@ -389,15 +400,18 @@ name  = "Your Name"
 
 # ── Permissions ─────────────────────────────────────────────────────
 # glob → octal mode. `**` crosses directories. When several patterns
-# match, the LONGEST pattern wins. Files with no match: 644, or 755 if
-# the repo copy is executable. (git only stores the exec bit, which is
-# why .ssh needs this section.)
+# match, the LONGEST (most specific) pattern wins; two equally long
+# matches that disagree are an error, never a coin flip. Files with no
+# match: 644, or 755 if the repo copy is executable. A rule is enforced on
+# existing files too (status `chmod`). (git only stores the exec bit,
+# which is why .ssh needs this section.)
 [permissions]
 ".ssh/**" = "600"
 
 # ── Hooks ───────────────────────────────────────────────────────────
-# After a successful apply, if the keyed file was among those written,
-# run the command (sh -c on Unix, cmd /C on Windows).
+# After apply writes the keyed file, run the command in $HOME (sh -c on
+# Unix, cmd /C on Windows). A hook that fails stays pending and is
+# retried by the next apply until it succeeds.
 [hooks]
 ".Brewfile" = "brew bundle --file=~/.Brewfile"
 ```
@@ -408,7 +422,7 @@ These patterns are **always** ignored, on every OS, without configuring anything
 **/.DS_Store   **/._*   **/.Spotlight-V100   **/Thumbs.db   **/desktop.ini
 ```
 
-A malformed ignore pattern is an error, not a silent non-match, so a typo can never quietly manage a file you meant to exclude.
+A malformed ignore pattern is an error, not a silent non-match, so a typo can never quietly manage a file you meant to exclude. Unknown keys are errors too: a typo like `[hook]` for `[hooks]` in `dots.toml` (or `layer =` for `layers =` in `machine.toml`) fails loudly instead of silently doing nothing.
 
 Substitution tokens look like `{{email}}` (spaces allowed: `{{ email }}`; names are `[A-Za-z0-9_]`). An **undefined variable in a substituted file fails the whole apply** — strata never writes a half-substituted config:
 
@@ -428,7 +442,7 @@ email = "you@work.example"
 
 ### State file (`~/.local/state/strata/state.json`)
 
-Maintained automatically — you never edit it. It maps each managed file to the SHA-256 of what strata last wrote, which is what powers drift detection. Deleting it is safe but demotes every existing file to `unmanaged` on the next apply (strata will ask before overwriting them again).
+Maintained automatically — you never edit it. It maps each managed file to the SHA-256 of what strata last wrote (which is what powers drift detection), plus any hooks still pending a retry. It carries a format `version`, so a strata older than the file refuses it rather than misreading it. Commands that change it take a lock (`state.json.lock`, released automatically if the process dies), so two strata runs can't clobber each other's updates. Deleting it is safe but demotes every existing file to `unmanaged` on the next apply (strata will ask before overwriting them again).
 
 ---
 
@@ -543,7 +557,7 @@ current  = the file in $HOME right now
 last     = SHA-256 of what strata last wrote           (state file)
 ```
 
-- `current == desired` → **clean**
+- `current == desired` → **clean** (or **chmod**, if an explicit permission rule — or the repo's exec bit — disagrees with the file's mode)
 - file missing → **create**
 - no `last` recorded → **unmanaged** (strata never wrote this file)
 - `current == last` (home untouched) → **update**
@@ -552,10 +566,10 @@ last     = SHA-256 of what strata last wrote           (state file)
 
 Guarantees built on top of that:
 
-- **All-or-nothing apply.** If anything would be refused, nothing is written.
-- **Atomic writes.** Files are written to a temp file and `rename()`d into place; a crash mid-apply can't leave a truncated `.zshrc`.
-- **Hooks run last**, only after every file write succeeded, and only for files that actually changed.
-- **Fail-loud substitution.** An undefined `{{var}}` aborts the apply before anything is written.
+- **All-or-nothing apply.** If anything would be refused — including replacing a symlink you set up — nothing is written.
+- **Atomic, durable writes.** Files are written to a temp file, flushed to disk, and `rename()`d into place; neither a crash nor a power cut mid-apply can leave a truncated `.zshrc`.
+- **Hooks run last, in `$HOME`**, only after every file write succeeded and only for files that actually changed — and a failed hook is retried on the next apply until it succeeds.
+- **Fail-loud config.** An undefined `{{var}}`, an unknown config key, or two equally specific permission rules that disagree abort the apply before anything is written.
 
 ---
 
@@ -569,7 +583,7 @@ Mainly for testing and scripting — normally you never set these:
 | `STRATA_CONFIG` | Path to `machine.toml` | `~/.config/strata/machine.toml` |
 | `STRATA_STATE` | Path to the state file | `~/.local/state/strata/state.json` |
 | `STRATA_BIN` | Path to the strata binary `uninstall` deletes | the running binary (`os.Executable()`) |
-| `EDITOR` | Editor used by `strata edit` | `vi` |
+| `VISUAL` / `EDITOR` | Editor used by `strata edit` (`VISUAL` wins; may include arguments, e.g. `code --wait`) | `vi` |
 
 These make it trivial to point strata at a sandbox and try anything risk-free:
 

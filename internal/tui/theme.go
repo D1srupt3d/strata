@@ -58,6 +58,8 @@ func statusGlyph(st engine.FileStatus) (string, color.Color, color.Color) {
 		return "✖ conflict", cRed, cBgRed
 	case engine.Removed:
 		return "✕ removed", cRed, cBgRed
+	case engine.Chmod:
+		return "◑ chmod", cBlue, cBgBlue
 	default:
 		return "? unmanaged", cMuted, cBgMuted
 	}

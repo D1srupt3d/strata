@@ -26,7 +26,8 @@ func newUninstallCmd() *cobra.Command {
   - the strata binary (the one you're running)
   - ~/.config/strata/machine.toml   (this machine's config)
   - ~/.local/state/strata/state.json (strata's memory of what it wrote)
-  - the "export PATH" line install.sh appended to your shell rc
+    and its lock file
+  - the "export PATH" line install.sh appended to your shell profile
 
 It does NOT touch the dotfiles strata copied into $HOME (.zshrc, .gitconfig,
 and the rest). Those are just normal files now and stay exactly as they are.
@@ -47,7 +48,7 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 			// Gather what actually exists so we only list real targets.
 			var files []string   // files to delete
 			var rcFiles []string // shell rc files that carry the installer's PATH line
-			for _, f := range []string{p.State, p.Machine, p.Bin} {
+			for _, f := range []string{p.State, p.State + ".lock", p.Machine, p.Bin} {
 				if f == "" {
 					continue
 				}
@@ -55,7 +56,9 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 					files = append(files, f)
 				}
 			}
-			for _, name := range []string{".zshrc", ".bashrc", ".profile"} {
+			// install.sh writes to a login profile (.zprofile, .bash_profile,
+			// .profile); older versions wrote to .zshrc/.bashrc, so check both.
+			for _, name := range []string{".zprofile", ".bash_profile", ".profile", ".zshrc", ".bashrc"} {
 				rc := filepath.Join(p.Home, name)
 				if data, err := os.ReadFile(rc); err == nil && strings.Contains(string(data), rcMarker) {
 					rcFiles = append(rcFiles, rc)
@@ -100,8 +103,10 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 					continue
 				}
 				fmt.Fprintf(out, "removed %s\n", f)
-				// Clean up now-empty strata dirs (e.g. ~/.config/strata).
-				if f == p.State || f == p.Machine {
+				// Clean up now-empty strata dirs (e.g. ~/.config/strata). Try
+				// after every removal: the state dir only empties once both
+				// state.json and its lock are gone.
+				if f != p.Bin {
 					_ = os.Remove(filepath.Dir(f)) // no-op if not empty
 				}
 			}

@@ -36,9 +36,14 @@ func TestOrder(t *testing.T) {
 func TestResolveLaterLayerWins(t *testing.T) {
 	repo := t.TempDir()
 	mk := func(layer, rel, content string) {
+		t.Helper()
 		p := filepath.Join(repo, layer, filepath.FromSlash(rel))
-		os.MkdirAll(filepath.Dir(p), 0o755)
-		os.WriteFile(p, []byte(content), 0o644)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	mk("base", ".zshrc", "base")
 	mk("base", ".gitconfig", "base-git")

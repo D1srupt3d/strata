@@ -393,6 +393,8 @@ func driftLabel(st engine.FileStatus) string {
 		return "CONFLICT — repo and $HOME both changed"
 	case engine.Unmanaged:
 		return "UNMANAGED — existing file differs from repo"
+	case engine.Chmod:
+		return "MODE FIX — content matches; apply sets the file mode"
 	}
 	return ""
 }
