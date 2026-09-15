@@ -29,9 +29,11 @@ for the files that were written.
 Safety rules:
   - If ANY file is drifted/conflicted/unmanaged, apply writes NOTHING and
     lists them — keep your version with 'strata add <file>', or take the
-    repo's with --force. All-or-nothing: a half-applied state can't happen.
+    repo's with --force. All-or-nothing: one blocked file stops them all.
   - Writes are atomic (temp file + rename); a crash never leaves a
-    half-written dotfile.
+    half-written dotfile. If a write fails partway (disk full, a folder
+    you can't write to), the files already written are recorded and their
+    hooks queued, so the next apply picks up where this one stopped.
   - An undefined {{var}} in a substituted file aborts before anything is
     written.`,
 		Example: `  strata apply --dry-run    preview without writing
@@ -121,12 +123,15 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 		printPlan(out, items, app.State, app.Cfg.Hooks, opts.force)
 		return nil
 	}
-	res, err := engine.Apply(items, app.Paths.Home, &app.State, opts.force)
-	if err != nil {
-		return err
+	res, applyErr := engine.Apply(items, app.Paths.Home, &app.State, opts.force)
+	if applyErr != nil && !res.Changed() {
+		return applyErr // refused, or failed before touching $HOME
 	}
 	// Queue hooks and persist the queue BEFORE running any: a hook that
 	// fails — or a crash mid-hook — stays pending and reruns next apply.
+	// This also runs when a write failed partway: the files that did get
+	// written must be recorded with their hooks queued, or the next apply
+	// sees them clean and their hooks never run.
 	var hooked []string
 	for _, rel := range res.Written {
 		if _, ok := app.Cfg.Hooks[rel]; ok {
@@ -135,7 +140,7 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 	}
 	app.State.QueueHooks(hooked)
 	if err := app.State.Save(app.Paths.State); err != nil {
-		return err
+		return errors.Join(applyErr, err)
 	}
 	for _, rel := range res.Written {
 		fmt.Fprintf(out, "wrote %s\n", rel)
@@ -146,8 +151,11 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 	for _, rel := range res.Deleted {
 		fmt.Fprintf(out, "removed %s\n", rel)
 	}
+	if applyErr != nil {
+		return fmt.Errorf("%w\n(what was written before the error is recorded and its hooks are queued — fix the problem, then run 'strata apply' again)", applyErr)
+	}
 	pending := app.State.PendingHooks
-	if len(res.Written) == 0 && len(res.Chmodded) == 0 && len(res.Deleted) == 0 && len(pending) == 0 {
+	if !res.Changed() && len(pending) == 0 {
 		fmt.Fprintln(out, "nothing to do")
 	}
 	if len(pending) == 0 {
