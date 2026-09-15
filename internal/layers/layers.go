@@ -55,6 +55,41 @@ func Order(roleLayers []string, goos, osRelease string) []string {
 	return out
 }
 
+// ValidName reports whether name can be a layer: one folder directly inside
+// the repo. "../x" would walk a folder outside the repo as a layer, and
+// "a/b" would reach into another layer.
+func ValidName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("%q is not a layer name — a layer is a folder directly inside the repo", name)
+	}
+	return nil
+}
+
+// CheckRoles verifies that every role layer names a folder in the repo. OS
+// layers are optional (most repos have no windows/), but a role layer is one
+// you typed: a missing folder is a typo, and skipping it would make every
+// file it provides read "removed" — so apply would delete them. A repo
+// folder that doesn't exist at all is the documented exception (README
+// "Order matters"): it reads as an empty repo, so there is nothing to check.
+func CheckRoles(repoDir string, roles []string) error {
+	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
+		return nil
+	}
+	var missing []string
+	for _, r := range roles {
+		if err := ValidName(r); err != nil {
+			return err
+		}
+		if info, err := os.Stat(filepath.Join(repoDir, r)); err != nil || !info.IsDir() {
+			missing = append(missing, fmt.Sprintf("%q", r))
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("role layer %s has no folder in %s — typo?", strings.Join(missing, ", "), repoDir)
+	}
+	return nil
+}
+
 // DefaultIgnore are patterns no repo ever wants managed. These files are
 // written *into* layer dirs by the OS file browser, not by the user — Finder
 // drops .DS_Store the moment the repo window is opened — so they would

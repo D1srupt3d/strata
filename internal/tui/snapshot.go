@@ -133,6 +133,9 @@ func canonicalColumns(repoDir string, roles []string) ([]string, map[string]stri
 // goos/osRelease are parameters so tests can simulate any platform.
 func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.State, goos, osRelease, hostname string) (*Snapshot, error) {
 	cfg := config.Merge(rc, mc)
+	if err := engine.CheckLayers(cfg); err != nil {
+		return nil, err // before any walk: a bad role layer must not read outside the repo
+	}
 
 	hereOrder := layers.Order(cfg.RoleLayers, goos, osRelease)
 	activeIdx := map[string]int{}
