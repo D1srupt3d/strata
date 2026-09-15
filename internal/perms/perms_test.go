@@ -60,6 +60,17 @@ func TestEqualLengthRulesThatAgreeAreFine(t *testing.T) {
 	}
 }
 
+// Only the 0–777 permission bits mean anything to strata: Go drops setuid,
+// setgid and sticky from a plain mode, so "4755" was written as 755 and then
+// reported as needing a chmod forever.
+func TestModeAboveOctal777IsAnError(t *testing.T) {
+	for _, mode := range []string{"4755", "1777", "2700", "10000"} {
+		if got, _, err := ModeFor("x", 0o644, map[string]string{"x": mode}); err == nil {
+			t.Errorf("mode %q accepted as %v; want an error", mode, got)
+		}
+	}
+}
+
 func TestBadModeString(t *testing.T) {
 	if _, _, err := ModeFor("x", 0o644, map[string]string{"x": "banana"}); err == nil {
 		t.Fatal("expected error for unparseable mode")
