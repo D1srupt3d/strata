@@ -171,8 +171,10 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
   do today is pick a side. A three-way merge (or just launching `$EDITOR`
   on a merged view) would be kinder. Needs the state file to store content,
   not just hashes, so it's not free.
-- **directory permissions** — my old setup made `~/.gnupg` itself 700; strata only
-  does files. Haven't hit a real problem from this yet but it's a known gap.
+- **directory permissions** — my old setup made `~/.gnupg` itself 700. Folders
+  strata *creates* are now as private as the file that needed them (a 600
+  file gets a 700 folder), but there's still no way to set or enforce a mode
+  on a folder that already exists.
 - **hook globs and run-once** — `".config/nvim/**" = "restart nvim somehow"`,
   and a way to run machine-setup scripts exactly once per machine instead of
   on every change. The second one smells like scope creep; sitting on it.
@@ -189,9 +191,6 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
 - **`strata upgrade --version`** — deliberately install a specific older
   signed release to back out a bad one. Plain `upgrade` still never
   downgrades; this would be the explicit, eyes-open exception.
-- **lint in CI** — staticcheck (or golangci-lint) for the class of bugs `go
-  vet` misses. Cheap, but it's another moving part in the pipeline, so it
-  earns its place first.
 
 ## not doing
 

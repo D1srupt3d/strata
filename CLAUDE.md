@@ -24,6 +24,9 @@ go build -o strata .                  # build
 go test ./...                         # all tests (each runs in its own t.TempDir())
 go test -race ./...                   # race detector (CI runs it on Linux)
 go vet ./... && gofmt -l .            # lint/format gate (gofmt must print nothing)
+go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...   # linter (CI, pinned version)
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...    # vulnerability scan (CI, pinned version)
+go test -fuzz=FuzzVerifySSHSig ./internal/release        # fuzz the signature parser (also: FuzzApply in internal/subst)
 
 go test ./internal/engine -run TestPlanStatuses -v   # single test
 go test . -run TestEndToEnd -v                       # the CLI end-to-end test
@@ -33,8 +36,10 @@ GOOS=linux go build   # cross-compile; also windows, darwin
 sh install.sh         # build + install to ~/.local/bin (STRATA_BIN_DIR overrides)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `gofmt -l` and `go test -race` (Linux only), `go vet`,
-`go build`, `go test` on ubuntu/macos/windows for every push to `main` and every PR. Run the same
+CI (`.github/workflows/ci.yml`) runs `gofmt -l`, `go test -race`, staticcheck and govulncheck
+(Linux only), `go vet`, `go build`, `go test` on ubuntu/macos/windows for every push to `main` and
+every PR. The two linters run via `go run pkg@vX.Y.Z`, pinned to exact versions — bump them
+deliberately. Run the same
 gate locally first — the Windows leg is the one that catches path-separator mistakes. Workflow
 actions are pinned to full commit SHAs with a `# vX.Y.Z` comment (Renovate bumps both); keep it
 that way when adding steps.
@@ -91,11 +96,25 @@ ones. Every command that applies (`apply`, `edit`, `rm`, `init`, `sync`) goes th
   host, and the TUI resolve all four OS columns at once. Never call `runtime.GOOS` inside
   `internal/` resolution code.
 - **All-or-nothing apply.** `engine.Apply` collects every blocked item in a first pass and returns
-  an error *before* writing anything. A half-applied state must stay impossible. `Item.Blocked` is
-  the single definition of "blocked" (drifted / conflict / unmanaged, an update or chmod that would
-  replace a `$HOME` symlink, a removed file edited since the last apply) — `--dry-run` uses it too.
+  an error *before* writing anything. `Item.Blocked` is the single definition of "blocked"
+  (drifted / conflict / unmanaged, an update or chmod that would replace a `$HOME` symlink, a
+  removed file edited since the last apply) — `--dry-run` and `rm`'s up-front refusal use it too
+  (`engine.BlockedList` formats the list). A write that fails for an I/O reason partway still
+  returns the partial `ApplyResult` (`Changed()`); `runApply` saves state and queues hooks for
+  what was written before returning the error, or those hooks would never run.
 - **Writes go through `fsutil.WriteFileAtomic`.** Temp file + `Chmod` + fsync + `rename`. Applies
-  to `state.json` too.
+  to `state.json` too. Missing parent folders are created 0700 when the file gives group/others
+  nothing, else 0755; existing folders are never changed.
+- **Role layers must exist.** `engine.CheckLayers` (first thing in `Plan`, and in `tui.Build`
+  before any walk) rejects a role layer that isn't a folder in the repo, or isn't a single folder
+  name — a skipped typo made its files read `removed`. The one exception is a repo folder that
+  doesn't exist at all, which reads as an empty repo (README "Order matters"). `machine.toml`'s
+  `repo` must be absolute after `~` expansion, or layers would resolve against the cwd.
+- **`add` records state only for the winning layer.** When `--layer` isn't the layer this machine
+  gets the file from (`winningLayer`), the `$HOME` copy is left unrecorded — recording it made
+  the next apply overwrite it, or delete it as `removed`.
+- **state.json paths are never trusted for deletion.** `Plan` refuses an entry that isn't
+  `filepath.IsLocal`; a hand-edited `../x` must not reach `os.Remove`.
 - **Hooks are queued before they run.** `runApply` saves the pending-hook queue to state *before*
   running hooks and clears each only on success, so a failed or interrupted hook reruns on the
   next apply. Hooks run with `$HOME` as the working directory.
