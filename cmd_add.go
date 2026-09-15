@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"strata/internal/fsutil"
+	"strata/internal/state"
 )
 
 // relFromArg turns a user-supplied path (~/.zshrc, .zshrc, /Users/x/.zshrc)
@@ -40,7 +41,9 @@ func newAddCmd() *cobra.Command {
           content becomes the repo content and the file reads clean again
 
 Default target layer is whichever layer currently wins for that file,
-else base. Paths may be ~-relative, $HOME-relative, or absolute.
+else base. If the repo can't be planned (e.g. an undefined {{var}}), add
+refuses rather than guess — fix the error, or name the layer with --layer.
+Paths may be ~-relative, $HOME-relative, or absolute.
 
 If the file uses {{var}} substitution you'll get a warning: the copy you
 captured contains the expanded values — restore the {{tokens}} by hand.`,
@@ -65,13 +68,18 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 
 			target := layer
 			if target == "" {
+				// The target is the layer that wins for rel. If planning fails we
+				// can't know it, and guessing base/ could push a work-only file
+				// to every machine — refuse instead.
+				items, err := app.plan()
+				if err != nil {
+					return fmt.Errorf("can't tell which layer %s belongs in: %w (fix that, or pass --layer)", rel, err)
+				}
 				target = "base"
-				if items, err := app.plan(); err == nil {
-					for _, it := range items {
-						if it.Rel == rel { // winning layer = first path element under repo
-							if l, err := filepath.Rel(app.Cfg.RepoDir, it.Source); err == nil {
-								target = strings.Split(filepath.ToSlash(l), "/")[0]
-							}
+				for _, it := range items {
+					if it.Rel == rel { // winning layer = first path element under repo
+						if l, err := filepath.Rel(app.Cfg.RepoDir, it.Source); err == nil {
+							target = strings.Split(filepath.ToSlash(l), "/")[0]
 						}
 					}
 				}
@@ -90,8 +98,17 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 			if err := fsutil.WriteFileAtomic(dest, content, info.Mode().Perm()); err != nil {
 				return err
 			}
-			app.State.Files[rel] = fsutil.Hash(content)
-			if err := app.State.Save(app.Paths.State); err != nil {
+			unlock, err := state.Lock(app.Paths.State)
+			if err != nil {
+				return err
+			}
+			defer unlock()
+			st, err := state.Load(app.Paths.State) // fresh copy under the lock
+			if err != nil {
+				return err
+			}
+			st.Files[rel] = fsutil.Hash(content)
+			if err := st.Save(app.Paths.State); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "added %s → %s/%s\n", rel, target, rel)
