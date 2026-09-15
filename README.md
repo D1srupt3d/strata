@@ -39,6 +39,16 @@ And running **bare `strata`** opens a read-only [terminal UI](#the-tui-bare-stra
 
 ### Install
 
+**Release build** (macOS or Linux — no Go, no git clone):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/D1srupt3d/strata/main/get.sh | sh
+```
+
+`get.sh` downloads the latest release, checks its signature (made by the strata release key) and its SHA-256, and installs `~/.local/bin/strata` — refusing to install anything if a check fails. If `~/.local/bin` isn't on your `PATH` it adds it to your login profile, exactly like `install.sh`. From then on, update with [`strata upgrade`](#strata-upgrade). Re-running `get.sh` reinstalls the latest release. On Windows, download the `.zip` from the [releases page](https://github.com/D1srupt3d/strata/releases).
+
+**From source** (for hacking on strata):
+
 ```sh
 sh install.sh
 ```
@@ -340,6 +350,26 @@ wrote .gitconfig
 
 Deleting a layer file by hand (or via `git rm` + `sync` on another machine) works identically — `status` shows the orphan as `removed` and the next `apply` cleans it up.
 
+### `strata upgrade`
+
+Replaces the running strata with the latest signed release — no git clone, no `git pull`. strata never touches the network unless you run this (or `get.sh`).
+
+```
+$ strata upgrade
+upgraded strata 2026.9.1 → 2026.9.2
+
+$ strata upgrade --check      # exit 1 if a newer release exists
+update available: 2026.9.1 → 2026.9.2 (run 'strata upgrade')
+```
+
+Nothing is replaced until every check passes, in order: the release is newer than this build (never a downgrade), `checksums.txt` carries a valid signature from the strata release key (an SSH key; `ssh-keygen -Y` format, namespace `strata-release`), the signed checksums list this platform's archive by its exact versioned name, the archive's SHA-256 matches, and the new binary runs and reports that version. Then it's swapped in atomically (on Windows the running `.exe` is moved aside to `strata.exe.old` and cleaned up next time). If anything fails, your installed strata is left exactly as it was.
+
+- `--check` — only report whether a newer release exists
+- `--force` — reinstall even if you're on the latest release
+- `update` works as an alias
+
+Only **release builds** (from GitHub releases or `get.sh`) upgrade themselves. A Homebrew install defers to `brew upgrade strata`, and a binary you built from source (`install.sh`, `go build`) is yours to update: `git pull && sh install.sh` — or switch to release builds with `get.sh`. Releases published before signing began (up to v2026.9.0) can't be installed this way.
+
 ### `strata uninstall`
 
 Removes strata itself — the binary, `~/.config/strata/machine.toml`, `~/.local/state/strata/state.json` (and its lock file), and the `export PATH` line `install.sh` added to your shell profile. It **does not** touch the dotfiles strata copied into `$HOME` (those are ordinary files now) or your dotfiles repo — delete those yourself if you want them gone.
@@ -584,6 +614,7 @@ Mainly for testing and scripting — normally you never set these:
 | `STRATA_STATE` | Path to the state file | `~/.local/state/strata/state.json` |
 | `STRATA_BIN` | Path to the strata binary `uninstall` deletes | the running binary (`os.Executable()`) |
 | `VISUAL` / `EDITOR` | Editor used by `strata edit` (`VISUAL` wins; may include arguments, e.g. `code --wait`) | `vi` |
+| `STRATA_RELEASE_API` | Release endpoint `strata upgrade` and `get.sh` query (tests, mirrors) | GitHub's `releases/latest` for D1srupt3d/strata |
 
 These make it trivial to point strata at a sandbox and try anything risk-free:
 
@@ -620,6 +651,8 @@ The engine takes `GOOS` and the os-release content as *parameters*, so tests exe
 ---
 
 ## Security note
+
+**Releases are signed.** Release CI signs `checksums.txt` with a dedicated SSH key held in a GitHub environment that only `v*` tag runs can use; `strata upgrade` and `get.sh` verify that signature against the public key built into strata (`internal/release/release_key.pub`, fingerprint `SHA256:nMQXiQxd18neATjd15cvS8DQ5ihMQXbrgBa6xLKedNY`) before trusting any download. Every release also carries GitHub build provenance: `gh attestation verify <file> --repo D1srupt3d/strata`.
 
 `[hooks]` commands are executed verbatim through the shell on apply — deliberately, exactly like git hooks or a Makefile. The trust boundary is the repo itself: only `init`/`apply` dotfiles repos you trust, because *any* dotfiles repo is arbitrary code execution by definition (it controls your `.zshrc`).
 

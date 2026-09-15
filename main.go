@@ -21,6 +21,13 @@ import (
 // in a bare `go build` — hence the -dev suffix.
 var version = "2026.9.0-dev"
 
+// channel says how this binary was built. GoReleaser stamps "release" via
+// -X main.channel=release; every other build (install.sh, go build) stays
+// "source". Only release builds replace themselves with `strata upgrade` —
+// a source build is its owner's to update. A var, like version, because -X
+// can't set a const.
+var channel = "source"
+
 // paths resolves where strata looks for things, honoring test/env overrides.
 type paths struct {
 	Home    string // target home dir (STRATA_HOME overrides)
@@ -118,7 +125,7 @@ hook, and permission comes from.`,
 		RunE:          runTUI, // bare `strata` opens the read-only TUI
 	}
 	root.AddCommand(newStatusCmd(), newDiffCmd(), newApplyCmd(), newAddCmd(),
-		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd(), newUninstallCmd())
+		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd(), newUninstallCmd(), newUpgradeCmd())
 	return root
 }
 

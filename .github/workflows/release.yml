@@ -14,6 +14,9 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # Holds STRATA_RELEASE_KEY. The environment's deployment rule admits only
+    # v* tags, so no other workflow run can read the signing key.
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -22,12 +25,36 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./...
+      # The key reaches the shell only through an env var (never spliced
+      # into the script text), lands in a 0600 temp file, and a missing
+      # secret fails the release — strata never publishes unsigned.
+      - name: Load release signing key
+        env:
+          STRATA_RELEASE_KEY: ${{ secrets.STRATA_RELEASE_KEY }}
+        run: |
+          if [ -z "$STRATA_RELEASE_KEY" ]; then
+            echo "::error::STRATA_RELEASE_KEY is not set in the 'release' environment; refusing to publish an unsigned release"
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$STRATA_RELEASE_KEY" > "$RUNNER_TEMP/strata_release_key"
+          echo "STRATA_RELEASE_KEY_FILE=$RUNNER_TEMP/strata_release_key" >> "$GITHUB_ENV"
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Belt and braces: check the published signature against the public
+      # key in the repo — the same check `strata upgrade` and get.sh make.
+      - name: Verify release signature
+        run: |
+          printf 'strata-release namespaces="strata-release" %s\n' "$(cat internal/release/release_key.pub)" > "$RUNNER_TEMP/allowed_signers"
+          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I strata-release -n strata-release \
+            -s dist/checksums.txt.sig < dist/checksums.txt
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/strata_release_key"
       # Signed build provenance for every archive and checksums.txt: proof a
       # binary was built by this workflow from this repo. checksums.txt alone
       # only proves a download wasn't corrupted — it ships from the same place

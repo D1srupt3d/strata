@@ -41,7 +41,13 @@ that way when adding steps.
 
 Releases are tag-driven: pushing a `v*` tag runs `release.yml` → GoReleaser (darwin/linux/windows
 × amd64/arm64), then attaches signed build provenance to every archive and `checksums.txt`
-(verify with `gh attestation verify <file> --repo D1srupt3d/strata`). Tags must be **un-padded**
+(verify with `gh attestation verify <file> --repo D1srupt3d/strata`). GoReleaser's `signs:` step
+signs `checksums.txt` with the release SSH key (`ssh-keygen -Y sign -n strata-release`) →
+`checksums.txt.sig`; the private key is the `STRATA_RELEASE_KEY` secret in the GitHub environment
+`release` (deployment rule: `v*` tags only). release.yml fails if the secret is missing and verifies
+the published signature afterwards — **never publish an unsigned release**; `strata upgrade` and
+`get.sh` refuse them. Check GoReleaser config locally with
+`go run github.com/goreleaser/goreleaser/v2@latest check`. Tags must be **un-padded**
 CalVer — `v2026.8.0`, not `v2026.08.0`; GoReleaser enforces semver and rejects a zero-padded month.
 
 ## Architecture
@@ -55,6 +61,8 @@ internal/perms/       permission globs (doublestar; longest pattern wins, equal-
 internal/state/       state.json: last-applied hashes, pending-hook queue, format version, file lock
 internal/engine/      Plan (status classification) → Apply → RunHooks
 internal/fsutil/      SHA-256 + atomic write (temp file + fsync + rename)
+internal/release/     `strata upgrade`: find, verify (SSH signature, stdlib only), and install signed
+                      releases; releasetest/ fakes a signed GitHub release for tests (test-only)
 internal/tui/         read-only Bubble Tea TUI: snapshot.go (data) / model.go / view.go
                       theme.go holds every color and lipgloss style — no literals elsewhere
 ```
@@ -138,6 +146,13 @@ status table in `README.md` together.
   `-X main.version={{.Version}}` ldflag, and `-X` silently does nothing to a `const`.
   `install.sh` stamps it too, from `git describe --tags --dirty --always`. The in-source value
   is only the fallback for a bare `go build` or a tarball with no git history.
+- `var channel` in main.go works like `version`: GoReleaser stamps `-X main.channel=release`;
+  every other build is `source`. Only `release` binaries `strata upgrade` themselves — source and
+  Homebrew installs are refused by design.
+- The release **public** key lives in two places: `internal/release/release_key.pub` (embedded)
+  and `get.sh` (which can't read the repo when piped from curl). `TestGetShKeyMatchesEmbeddedReleaseKey`
+  keeps them identical — change both together. Signature test fixtures come from the real
+  `ssh-keygen` via `internal/release/testdata/gen.sh` (throwaway key; never commit a private key).
 - Package doc comments carry the "why" for each `internal/` package. Match that density.
 
 ## Repo notes
