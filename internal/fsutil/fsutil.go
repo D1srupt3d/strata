@@ -13,8 +13,11 @@ func Hash(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// WriteFileAtomic writes data to path via a temp file + rename so a crash
-// never leaves a half-written file. Creates parent directories.
+// WriteFileAtomic writes data to path via a temp file + fsync + rename, so
+// neither a crash nor a power cut leaves a half-written or empty file: the
+// data reaches disk before the rename makes it visible. Creates parent
+// directories. Like any rename-into-place, it replaces a symlink at path
+// with a regular file — callers that must preserve links check first.
 func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -34,8 +37,25 @@ func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, path)
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	syncDir(dir)
+	return nil
+}
+
+// syncDir flushes the directory entry so a completed rename survives a power
+// cut. Best effort: some platforms (Windows) can't open a directory to sync.
+func syncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		d.Close()
+	}
 }
