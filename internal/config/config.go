@@ -59,7 +59,19 @@ func LoadMachineConfig(path string) (MachineConfig, error) {
 		return mc, fmt.Errorf("parsing %s (run 'strata init' first?): %w", path, err)
 	}
 	mc.Repo = ExpandTilde(mc.Repo)
-	return mc, rejectUnknown(path, md)
+	if err := rejectUnknown(path, md); err != nil {
+		return mc, err
+	}
+	// A relative repo would resolve against whichever folder strata runs
+	// from, so the same machine would read "clean" in one folder and
+	// "removed" in the next — and apply from the wrong one would delete.
+	switch {
+	case mc.Repo == "":
+		return mc, fmt.Errorf("%s: repo is not set — it must be the full path to your dotfiles repo (set it, or rerun 'strata init --repo <path>')", path)
+	case !filepath.IsAbs(mc.Repo):
+		return mc, fmt.Errorf("%s: repo = %q is a relative path — use the full path (or ~/...), otherwise it depends on which folder you run strata from", path, mc.Repo)
+	}
+	return mc, nil
 }
 
 // rejectUnknown fails on keys the config structs don't define. The TOML

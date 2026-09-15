@@ -46,6 +46,25 @@ func TestUnknownMachineConfigKeyIsAnError(t *testing.T) {
 	}
 }
 
+// A machine.toml without repo, or with a relative one, made layers resolve
+// against whatever folder strata ran from: status said clean inside the repo
+// and "removed" everywhere else — and apply from the wrong folder deleted.
+func TestMachineConfigRepoMustBeAFullPath(t *testing.T) {
+	for name, content := range map[string]string{
+		"missing":  "layers = []\n",
+		"empty":    "repo = \"\"\n",
+		"relative": "repo = \"dotfiles\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "machine.toml")
+			write(t, path, content)
+			if _, err := LoadMachineConfig(path); err == nil || !strings.Contains(err.Error(), "repo") {
+				t.Errorf("err = %v, want an error about repo", err)
+			}
+		})
+	}
+}
+
 func TestLoadAndMerge(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "repo", "dots.toml"), `
