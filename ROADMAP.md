@@ -61,11 +61,57 @@ a drive letter), and the first-ever Linux run just passed. v2026.8.0 is live
 with downloadable binaries. Still open from the original wishlist: the
 Homebrew tap, which needs its own repo and token.
 
+## done — 2026.9.0: the edges caught up with the core
+
+The first real machine setup (my work Mac) surfaced something dumb, exactly
+as predicted below — several somethings, actually. So I sat down for a proper
+review of the whole thing, and the verdict was fair: a careful engine with
+soft edges. The core was fine; the wiring around it wasn't. Every fix went in
+test-first, and the command layer went from half-tested to about three
+quarters:
+
+- a `[permissions]` rule added later now actually reaches files that were
+  already applied — new `chmod` status. It never loosens a mode I tightened
+  by hand, and never fires on Windows.
+- a failed hook isn't forgotten anymore: it stays pending in state.json, shows
+  up in `status`, and the next apply retries it until it works. Hooks also run
+  in `$HOME` now, so relative paths mean the same thing every time.
+- `strata add` refuses to guess `base/` when it can't plan — it once put my
+  work git identity in the layer every machine gets
+- typos in `dots.toml`/`machine.toml` (`[hook]` for `[hooks]`) are errors
+  instead of silent no-ops, and two equally specific permission rules that
+  disagree are an error instead of a coin flip
+- `status` exits 1 when something needs attention, so it's finally scriptable
+- `--dry-run` tells the truth about blocked files and the all-or-nothing rule
+- symlinked dotfiles don't get silently swapped for regular files; `--force`
+  if I mean it
+- `init` respects `--layers ""`, warns when the repo isn't a git clone (like
+  a downloaded zip), and lists the vars still sitting on their defaults
+- `edit` honors `$VISUAL` and `code --wait`-style editors
+- state.json has a format version and a lock, and writes fsync before the
+  rename
+- `install.sh` stopped editing `.zshrc` — a managed dotfile, so the first
+  apply would have flagged the installer's own line as drift. PATH goes in
+  the login profile now.
+- CI pins every action to a commit SHA and runs the race detector; releases
+  ship signed build provenance
+
+Still open: vars per layer (below) — the thing that actually bit me on the
+work Mac.
+
 ## soon-ish
 
+**Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
+layer at init brings the work values with it instead of me remembering to
+hand-edit machine.toml. Precedence follows the file stack: defaults → OS
+layer → role layer → machine.toml. The format's decided and the provenance
+plumbing the TUI needs is already in.
+
 **`strata upgrade` (self-updater).** Now that releases exist: check the latest
-tag, download the right binary, verify it against checksums.txt (never
-skipping that — it's replacing an executable), and atomically swap it over
+tag, download the right binary, verify it against checksums.txt and the
+signed build provenance releases carry since 2026.9.0 (never skipping that —
+it's replacing an executable, and a checksum shipped next to the binary only
+proves the download isn't corrupted), and atomically swap it over
 os.Executable(), same temp-file-and-rename trick apply already uses. Two
 rules I've already decided: if the binary was installed by Homebrew, refuse
 and say `brew upgrade strata` instead of fighting brew's bookkeeping; and
