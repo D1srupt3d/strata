@@ -2,17 +2,21 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 
 	"strata/internal/config"
 	"strata/internal/fsutil"
+	"strata/internal/layers"
 )
 
 func newInitCmd() *cobra.Command {
@@ -28,6 +32,10 @@ The first apply never overwrites existing files it didn't write — it
 stops and lists them so you can 'strata add' the keepers and --force the
 rest.
 
+Re-running init (say, after moving the repo) replaces repo and layers but
+keeps this machine's [vars] overrides. Comments in the old machine.toml
+are not kept.
+
 If your repo uses [vars], init lists the ones running on their dots.toml
 defaults; override any of them per machine under [vars] in machine.toml.
 It also warns when the repo isn't a git clone, since 'strata sync' needs
@@ -38,6 +46,12 @@ one.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := resolvePaths()
+			if err != nil {
+				return err
+			}
+			// Read the overrides to keep before doing anything (cloning
+			// included), so an unreadable machine.toml stops init up front.
+			keep, err := existingVars(p.Machine)
 			if err != nil {
 				return err
 			}
@@ -79,6 +93,11 @@ one.`,
 				line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
 				roles = splitCSV(line)
 			}
+			// A typo'd layer must fail here, not leave a machine.toml that
+			// every later command rejects.
+			if err := layers.CheckRoles(abs, roles); err != nil {
+				return fmt.Errorf("role layers: %w", err)
+			}
 
 			var b strings.Builder
 			fmt.Fprintf(&b, "repo = %q\n", filepath.ToSlash(abs))
@@ -90,22 +109,37 @@ one.`,
 				fmt.Fprintf(&b, "%q", r)
 			}
 			b.WriteString("]\n")
+			if len(keep) > 0 {
+				b.WriteString("\n")
+				enc := toml.NewEncoder(&b)
+				enc.Indent = ""
+				if err := enc.Encode(struct {
+					Vars map[string]string `toml:"vars"`
+				}{keep}); err != nil {
+					return err
+				}
+			}
 			if err := fsutil.WriteFileAtomic(p.Machine, []byte(b.String()), 0o644); err != nil {
 				return err
 			}
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "wrote %s\n", p.Machine)
+			if len(keep) > 0 {
+				fmt.Fprintf(out, "kept %d [vars] override(s) from the previous machine.toml\n", len(keep))
+			}
 			if !isGitRepo(abs) {
 				fmt.Fprintf(out, "warning: %s is not a git repository — apply works, but 'strata sync' (git pull) won't until it's a git clone\n", abs)
 			}
-			if len(rc.Vars) > 0 {
-				names := make([]string, 0, len(rc.Vars))
-				for n := range rc.Vars {
-					names = append(names, n)
+			var onDefault []string
+			for n := range rc.Vars {
+				if _, overridden := keep[n]; !overridden {
+					onDefault = append(onDefault, n)
 				}
-				sort.Strings(names)
+			}
+			if len(onDefault) > 0 {
+				sort.Strings(onDefault)
 				fmt.Fprintf(out, "note: these vars use their dots.toml defaults on this machine — override any of them under [vars] in %s:\n", p.Machine)
-				for _, n := range names {
+				for _, n := range onDefault {
 					fmt.Fprintf(out, "  %s = %q\n", n, rc.Vars[n])
 				}
 			}
@@ -121,6 +155,25 @@ one.`,
 	cmd.Flags().StringVar(&dirFlag, "dir", "", "clone destination (default ~/dotfiles)")
 	cmd.Flags().StringVar(&layersFlag, "layers", "", "role layers, comma-separated (skips prompt)")
 	return cmd
+}
+
+// existingVars returns the [vars] of the machine.toml init is about to
+// replace, so re-running init keeps this machine's overrides. Only [vars]
+// carries over: repo and layers are what init replaces, and a stale or
+// invalid key is exactly what re-running init repairs. A file that can't be
+// parsed at all is refused rather than overwritten — it may hold the only
+// copy of those overrides.
+func existingVars(path string) (map[string]string, error) {
+	var old struct {
+		Vars map[string]string `toml:"vars"`
+	}
+	if _, err := toml.DecodeFile(path, &old); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%s exists but can't be read (%w) — fix or remove it, then rerun init", path, err)
+	}
+	return old.Vars, nil
 }
 
 // isGitRepo reports whether dir is inside a git work tree — where

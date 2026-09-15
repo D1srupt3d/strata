@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -108,6 +109,70 @@ func TestInitClonesFromURL(t *testing.T) {
 	}
 	if got := readFile(t, s.home(".zshrc")); got != "from origin\n" {
 		t.Errorf("$HOME .zshrc = %q, want the cloned content", got)
+	}
+}
+
+// A role layer with no folder is a typo; init must catch it before writing
+// machine.toml, not leave a config that every later command rejects.
+func TestInitRejectsRoleLayerWithoutAFolder(t *testing.T) {
+	s := initRepo(t)
+	before := readFile(t, s.Machine)
+	_, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "wrok")
+	if err == nil || !strings.Contains(err.Error(), "wrok") {
+		t.Fatalf("init --layers wrok: err = %v, want one naming the missing layer", err)
+	}
+	if got := readFile(t, s.Machine); got != before {
+		t.Errorf("machine.toml was rewritten despite the error:\n%s", got)
+	}
+}
+
+// Re-running init (after moving the repo, say) rewrote machine.toml from
+// scratch: the machine's [vars] overrides vanished and apply quietly put the
+// dots.toml defaults back into $HOME.
+func TestInitKeepsMachineVarOverrides(t *testing.T) {
+	s := initRepo(t)
+	writeFile(t, s.repo("base/.greet"), "hi {{name}}\n")
+	writeFile(t, s.repo("dots.toml"), "substitute = [\".greet\"]\n[vars]\nname = \"default\"\n")
+	writeFile(t, s.Machine, fmt.Sprintf("repo = %q\nlayers = []\n[vars]\nname = \"override\"\n", filepath.ToSlash(s.Repo)))
+
+	out, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "")
+	if err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".greet")); got != "hi override\n" {
+		t.Errorf("$HOME .greet = %q, want the machine override applied", got)
+	}
+	if mc := readFile(t, s.Machine); !strings.Contains(mc, "override") {
+		t.Errorf("machine.toml lost its [vars] override:\n%s", mc)
+	}
+	if strings.Contains(out, `name = "default"`) {
+		t.Errorf("init says name runs on its default, but machine.toml overrides it:\n%s", out)
+	}
+}
+
+// A machine.toml init can't parse is refused, not replaced: it may hold the
+// only copy of this machine's overrides.
+func TestInitRefusesToReplaceAnUnparseableMachineToml(t *testing.T) {
+	s := initRepo(t)
+	writeFile(t, s.Machine, "this is = = not toml\n")
+	if _, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", ""); err == nil {
+		t.Fatal("init replaced a machine.toml it couldn't read")
+	}
+	if got := readFile(t, s.Machine); got != "this is = = not toml\n" {
+		t.Errorf("machine.toml was changed:\n%s", got)
+	}
+}
+
+// init is also how you repair a machine.toml the other commands reject (a
+// relative repo, a stale key), so a parseable one is always replaced.
+func TestInitRepairsAnInvalidButParseableMachineToml(t *testing.T) {
+	s := initRepo(t)
+	writeFile(t, s.Machine, "repo = \"dotfiles\"\nlayer = [\"work\"]\n")
+	if out, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "work"); err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".gitconfig")); got != "work\n" {
+		t.Errorf("$HOME .gitconfig = %q, want the work layer's", got)
 	}
 }
 
