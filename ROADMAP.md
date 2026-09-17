@@ -120,6 +120,17 @@ merge caught a very Windows bug — git rewrote the line endings of a signed
 test fixture, so its signature stopped matching — which is exactly why the
 Windows leg exists.
 
+## done — September 2026: the first real runs
+
+Two items that were never about writing code. The personal Mac went from
+nothing to managed with one `get.sh` line and `strata init <git-url>` — the
+first time init had cloned a real repo instead of a test fixture. And strata
+ran on actual Linux in the homelab, so the distro detection from
+`/etc/os-release` finally executed somewhere other than a unit test. I braced
+for something dumb both times, the way the work Mac delivered in 2026.9.0.
+Nothing showed up — which mostly says the fixture tests were testing the
+right things.
+
 ## soon-ish
 
 **Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
@@ -147,16 +158,6 @@ trust. The plan is written down (ship one release that trusts both keys,
 then switch), but I'd rather do it once calmly than for the first time in a
 hurry — and decide what "the key leaked" really looks like beyond
 "reinstall with get.sh".
-
-**Bootstrap the personal Mac for real.** Installing is one `get.sh` line
-now, but `strata init` from a git URL has only ever run against test
-fixtures. The first real second-machine setup
-will surface something dumb, it always does. I want that pain while the
-code is fresh in my head.
-
-**Run it on actual Linux.** The arch/distro layer detection is unit tested
-but has literally never executed on a Linux box. I have a homelab; there's
-no excuse.
 
 **Shell completions.** Cobra generates them for free (`strata completion
 zsh`), I just haven't wired the install script to put them anywhere. Tab
