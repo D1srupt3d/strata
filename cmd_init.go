@@ -22,12 +22,14 @@ import (
 func newInitCmd() *cobra.Command {
 	var repoFlag, dirFlag, layersFlag string
 	cmd := &cobra.Command{
-		Use:   "init [git-url]",
+		Use:   "init [git-url | local-repo]",
 		Short: "Set up this machine: clone (if URL given), choose role layers, write machine.toml, first apply",
 		Long: `First-time setup. Writes ~/.config/strata/machine.toml (the only
 per-machine state) and runs the first apply.
 
 With a git URL, clones the repo first (default destination ~/dotfiles).
+A path to an existing local folder is used in place, like --repo; add
+--dir to clone it instead.
 The first apply never overwrites existing files it didn't write — it
 stops and lists them so you can 'strata add' the keepers and --force the
 rest.
@@ -41,6 +43,7 @@ defaults; override any of them per machine under [vars] in machine.toml.
 It also warns when the repo isn't a git clone, since 'strata sync' needs
 one.`,
 		Example: `  strata init git@github.com:you/dotfiles.git
+  strata init ~/src/dotfiles                     # existing local repo, used in place
   strata init --repo ~/dotfiles --layers work
   strata init --repo ~/dotfiles --layers ""      # no role layers`,
 		Args: cobra.MaximumNArgs(1),
@@ -56,6 +59,12 @@ one.`,
 				return err
 			}
 			repoDir := repoFlag
+			// A local folder passed without --dir is the repo itself, not a
+			// clone source: `strata init ~/src/dotfiles` used to clone it into
+			// ~/dotfiles and point this machine at the copy.
+			if len(args) == 1 && dirFlag == "" && isDir(args[0]) {
+				repoDir, args = args[0], nil
+			}
 			if len(args) == 1 { // clone mode
 				repoDir = dirFlag
 				if repoDir == "" {
@@ -190,4 +199,10 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// isDir reports whether path is an existing folder.
+func isDir(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
 }

@@ -320,12 +320,13 @@ Path forms all work: `strata add .zshrc`, `strata add ~/.zshrc`, `strata add /Us
 - `--layer mac` — put the file in a specific layer instead of the default (the currently-winning layer, or `base` for new files). The layer must be a folder in the repo or one of this machine's layers, so a typo like `--layer wrok` is an error rather than a new layer. If that layer isn't the one this machine gets the file from — a later layer overrides it, or it isn't one of this machine's layers — the copy is saved there but `$HOME` is left alone, and add tells you which layer wins. If the repo can't be planned right now (say, an undefined `{{var}}`), `add` without `--layer` refuses rather than guess `base` — which could push a work-only file to every machine. Fix the error, or name the layer.
 - If the file is on the `substitute` list, add warns you: the copy you just captured contains the **expanded** values, so re-insert the `{{tokens}}` by hand afterwards (`strata edit <file>`).
 
-### `strata init [git-url]`
+### `strata init [git-url | local-repo]`
 
 First-time setup on a machine.
 
 ```sh
 strata init git@github.com:you/dotfiles.git   # clone to ~/dotfiles (--dir to change), prompt for role layers, write machine.toml, first apply
+strata init ~/src/dotfiles                    # existing local repo: used in place, not cloned
 strata init --repo ~/dotfiles --layers work   # use an existing local repo, skip the prompt
 strata init --repo ~/dotfiles --layers ""     # no role layers
 ```

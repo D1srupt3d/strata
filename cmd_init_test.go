@@ -112,6 +112,25 @@ func TestInitClonesFromURL(t *testing.T) {
 	}
 }
 
+// A local folder without --dir is the repo itself. It used to be handed to
+// git clone, so `strata init dotfiles/` pointed the machine at a copy in
+// ~/dotfiles instead of the repo the user was working in.
+func TestInitUsesLocalFolderInPlace(t *testing.T) {
+	s := initRepo(t)
+	if out, err := runIn(t, "", "init", s.Repo, "--layers", "work"); err != nil {
+		t.Fatalf("init <folder>: %v\n%s", err, out)
+	}
+	if mc := readFile(t, s.Machine); !strings.Contains(mc, fmt.Sprintf("repo = %q", filepath.ToSlash(s.Repo))) {
+		t.Errorf("machine.toml does not point at the folder given:\n%s", mc)
+	}
+	if exists(s.home("dotfiles")) {
+		t.Error("init cloned the local folder into ~/dotfiles")
+	}
+	if got := readFile(t, s.home(".gitconfig")); got != "work\n" {
+		t.Errorf("$HOME .gitconfig = %q, want the work layer's", got)
+	}
+}
+
 // A role layer with no folder is a typo; init must catch it before writing
 // machine.toml, not leave a config that every later command rejects.
 func TestInitRejectsRoleLayerWithoutAFolder(t *testing.T) {
