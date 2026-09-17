@@ -63,6 +63,19 @@ Cross-compiles with plain Go: `GOOS=linux go build`, `GOOS=windows go build`, et
 
 To reverse all of this later, run [`strata uninstall`](#strata-uninstall) — it removes the binary, config, state, and the PATH line, leaving your actual dotfiles alone.
 
+### Try it first: the starter repo
+
+[**strata-dots**](https://github.com/D1srupt3d/strata-dots) is a small template dotfiles repo with one example of each strata feature: layers, a role layer, variables, permissions and a hook. It comes with `try.sh`, which applies the repo to a throwaway home folder, so you can explore without touching your real dotfiles:
+
+```sh
+git clone https://github.com/D1srupt3d/strata-dots.git && cd strata-dots
+./try.sh            # set up a sandbox home in ./.sandbox/ and apply
+./try.sh            # open the TUI
+./try.sh status     # or any other strata command
+```
+
+When you're ready, click **Use this template** on GitHub to make your own copy, then follow [New machine, existing repo](#new-machine-existing-repo).
+
 ### Starting from scratch
 
 ```sh
