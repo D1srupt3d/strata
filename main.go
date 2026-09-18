@@ -129,7 +129,7 @@ hook, and permission comes from.`,
 		Args:          cobra.NoArgs,
 		RunE:          runTUI, // bare `strata` opens the read-only TUI
 	}
-	root.AddCommand(newStatusCmd(), newDiffCmd(), newApplyCmd(), newAddCmd(),
+	root.AddCommand(newStatusCmd(), newDoctorCmd(), newDiffCmd(), newApplyCmd(), newAddCmd(),
 		newEditCmd(), newInitCmd(), newSyncCmd(), newRmCmd(), newUninstallCmd(), newUpgradeCmd())
 	return root
 }

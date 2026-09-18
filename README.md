@@ -222,7 +222,7 @@ Go file by file: `strata diff` to compare, `strata add` the ones where this mach
 
 Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 
-> **Order matters: update `machine.toml` before running `apply`.** strata reads a missing repo folder as a repo with no files, so every managed file shows as `removed`, and apply would delete them from `$HOME`. (If you edited any of them, apply refuses instead.)
+> **Order matters: update `machine.toml` before running `apply`.** strata reads a missing repo folder as a repo with no files, so every managed file shows as `removed`, and apply would delete them from `$HOME`. (If you edited any of them, apply refuses instead.) `strata doctor` catches this: it reports a missing repo folder as an error.
 
 ## Commands
 
@@ -230,6 +230,7 @@ Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 |---|---|
 | `strata` | Open the read-only [TUI](#the-tui) |
 | `strata status` | List files that need attention; exit status 1 if any do |
+| `strata doctor` | Check this machine's setup and list every problem, each with a fix; exit status 1 on errors |
 | `strata diff` | Diff what's in `$HOME` against what apply would write |
 | `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes) |
 | `strata edit <file>` | Open the winning layer's source in your editor, show the diff, offer to apply |
