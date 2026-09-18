@@ -182,8 +182,6 @@ Stuff I'd take a weekend on if the itch hits, in rough order of likelihood:
 - **TUI write actions** — apply/add from inside the TUI. I made it read-only
   on purpose (a viewer you can trust completely is worth a lot), so if this
   happens it'll be opt-in and obvious, not default.
-- **`strata doctor`** — checks your setup and says what's wrong: repo missing,
-  machine.toml stale, state file referencing files that don't exist, etc.
 - **Windows installer** — a `get.ps1` twin of get.sh, so Windows doesn't mean
   downloading a zip by hand. Waiting on me using strata on Windows for more
   than CI.

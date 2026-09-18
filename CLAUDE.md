@@ -71,6 +71,8 @@ internal/subst/       {{var}} substitution, fail-loud on undefined
 internal/perms/       permission globs (doublestar; longest pattern wins, equal-length disagreement errors)
 internal/state/       state.json: last-applied hashes, pending-hook queue, format version, file lock
 internal/engine/      Plan (status classification) → Apply → RunHooks
+internal/doctor/      `strata doctor`: every setup check run on its own, all problems listed;
+                      read-only, and reuses config/layers/perms/subst/state so it reports what apply would
 internal/fsutil/      SHA-256 + atomic write (temp file + fsync + rename)
 internal/release/     `strata upgrade`: find, verify (SSH signature, stdlib only), and install signed
                       releases; releasetest/ fakes a signed GitHub release for tests (test-only)
