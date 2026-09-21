@@ -52,7 +52,7 @@ func TestMissingRepoIsError(t *testing.T) {
 }
 
 // A repo path that exists but isn't a readable folder makes every command
-// that reads it fail outright, not read it as empty — unlike a missing repo.
+// that reads it fail outright, not read it as empty - unlike a missing repo.
 func TestRepoThatIsAFileIsError(t *testing.T) {
 	e := newEnv(t)
 	mustRemoveAll(t, e.repo)

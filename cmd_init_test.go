@@ -50,7 +50,7 @@ func TestInitEmptyLayersFlagSkipsPrompt(t *testing.T) {
 }
 
 // A plain folder (e.g. a downloaded zip) works for apply, but `sync` runs
-// git pull and will fail there — say so up front.
+// git pull and will fail there - say so up front.
 func TestInitWarnsWhenRepoIsNotAGitRepo(t *testing.T) {
 	s := initRepo(t)
 	out, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "")
@@ -75,7 +75,7 @@ func TestInitDoesNotWarnForAGitRepo(t *testing.T) {
 	}
 }
 
-// init writes no [vars], so every var runs on its dots.toml default — which
+// init writes no [vars], so every var runs on its dots.toml default - which
 // silently gave a work machine the personal values. Say which ones, and
 // where to override them.
 func TestInitRemindsAboutVarsOnDefaults(t *testing.T) {

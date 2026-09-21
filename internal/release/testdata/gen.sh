@@ -1,7 +1,7 @@
 #!/bin/sh
 # Regenerates the SSH-signature test fixtures using the REAL ssh-keygen, so
 # strata's verifier is tested against the tool that makes release
-# signatures — not against its own encoder. The throwaway private key lives
+# signatures - not against its own encoder. The throwaway private key lives
 # only in a temp dir and is deleted on exit; only its public half and the
 # signatures are kept. Run from anywhere: sh internal/release/testdata/gen.sh
 set -eu

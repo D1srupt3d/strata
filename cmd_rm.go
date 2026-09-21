@@ -17,7 +17,7 @@ func newRmCmd() *cobra.Command {
 then runs apply.
 
 If no other layer provides the file, apply removes it from $HOME too
-(status 'removed') — refusing first if you'd edited it locally, same as
+(status 'removed') - refusing first if you'd edited it locally, same as
 any overwrite. If an earlier layer still provides the file, that layer
 wins again and the $HOME copy is rewritten to it instead.
 

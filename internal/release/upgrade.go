@@ -12,8 +12,8 @@ import (
 	"time"
 )
 
-// Options configures Latest and Upgrade. Everything is injected — platform,
-// paths, server, keys — so tests run the real flow against a fake release,
+// Options configures Latest and Upgrade. Everything is injected - platform,
+// paths, server, keys - so tests run the real flow against a fake release,
 // and only main.go supplies runtime.GOOS and friends.
 type Options struct {
 	APIURL       string       // releases/latest endpoint; "" means DefaultAPI
@@ -84,7 +84,7 @@ func Upgrade(ctx context.Context, o Options) (Result, error) {
 	res := Result{From: o.Current, To: to}
 	switch {
 	case to.Less(o.Current):
-		return res, fmt.Errorf("the latest release (%s) is older than this strata (%s) — refusing to downgrade", to, o.Current)
+		return res, fmt.Errorf("the latest release (%s) is older than this strata (%s) - refusing to downgrade", to, o.Current)
 	case to == o.Current && !o.Force:
 		return res, nil
 	}
@@ -97,7 +97,7 @@ func Upgrade(ctx context.Context, o Options) (Result, error) {
 	sumsURL, haveSums := rel.assetURL("checksums.txt")
 	sigURL, haveSig := rel.assetURL("checksums.txt.sig")
 	if !haveSums || !haveSig {
-		return res, fmt.Errorf("release %s isn't signed (no checksums.txt.sig) — refusing to install it", rel.Tag)
+		return res, fmt.Errorf("release %s isn't signed (no checksums.txt.sig) - refusing to install it", rel.Tag)
 	}
 	archiveURL, ok := rel.assetURL(archiveName)
 	if !ok {
@@ -126,7 +126,7 @@ func Upgrade(ctx context.Context, o Options) (Result, error) {
 		return res, err
 	}
 	if got := sha256Hex(archive); got != want {
-		return res, fmt.Errorf("%s: checksum mismatch (downloaded %s, signed %s) — refusing to install", archiveName, got, want)
+		return res, fmt.Errorf("%s: checksum mismatch (downloaded %s, signed %s) - refusing to install", archiveName, got, want)
 	}
 	data, err := ExtractBinary(archive, ext, bin)
 	if err != nil {
@@ -143,7 +143,7 @@ func Upgrade(ctx context.Context, o Options) (Result, error) {
 		return res, fmt.Errorf("the new binary won't run: %w", err)
 	}
 	if !reportsVersion(out, to) {
-		return res, fmt.Errorf("the new binary reports %q, expected version %s — refusing to install", strings.TrimSpace(out), to)
+		return res, fmt.Errorf("the new binary reports %q, expected version %s - refusing to install", strings.TrimSpace(out), to)
 	}
 	if err := install(tmp, o.Target, o.GOOS); err != nil {
 		return res, err

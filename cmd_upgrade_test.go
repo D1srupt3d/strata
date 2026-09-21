@@ -59,7 +59,7 @@ func TestUpgradeCommandReplacesReleaseBinary(t *testing.T) {
 	}
 }
 
-// "update" is an alias — the word people reach for first.
+// "update" is an alias - the word people reach for first.
 func TestUpdateIsAnAliasForUpgrade(t *testing.T) {
 	bin := upgradeSandbox(t, "2026.9.0", "2026.9.1", "release")
 	if out, err := run(t, "update"); err != nil {
@@ -117,7 +117,7 @@ func TestIsHomebrewPath(t *testing.T) {
 }
 
 // --check is a question: exit 1 when an update exists (like `status` when
-// something needs attention), 0 when current — and it never installs.
+// something needs attention), 0 when current - and it never installs.
 func TestUpgradeCheckExitCodes(t *testing.T) {
 	bin := upgradeSandbox(t, "2026.9.0", "2026.9.1", "release")
 	out, err := run(t, "upgrade", "--check")

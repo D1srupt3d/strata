@@ -3,7 +3,7 @@ package release
 import "testing"
 
 // The embedded release key must parse and be exactly the key whose
-// fingerprint was recorded when it was created — this catches a truncated or
+// fingerprint was recorded when it was created - this catches a truncated or
 // wrong key pasted into release_key.pub before a release ever relies on it.
 func TestReleaseKeyFingerprint(t *testing.T) {
 	if len(TrustedKeys) != 1 {

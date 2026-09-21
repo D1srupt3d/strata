@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// rm deletes the file from the layer that wins, then applies — so a file no
+// rm deletes the file from the layer that wins, then applies - so a file no
 // other layer provides disappears from $HOME as well.
 func TestRmDeletesWinningSourceAndApplies(t *testing.T) {
 	s := sandbox(t)

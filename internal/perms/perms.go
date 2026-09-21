@@ -19,7 +19,7 @@ type match struct {
 // bestRule finds the most specific (longest) pattern matching rel. Equally
 // long matches must agree on the mode: otherwise the winner would depend on
 // Go's random map order, and the same config could yield 600 on one run and
-// 644 on the next — so a disagreement is a config error.
+// 644 on the next - so a disagreement is a config error.
 func bestRule(rel string, rules map[string]string) (match, bool, error) {
 	var best []match
 	for pattern, modeStr := range rules {
@@ -72,7 +72,7 @@ func RuleFor(rel string, rules map[string]string) (string, bool, error) {
 }
 
 // ModeFor picks: most specific glob rule > exec-bit heuristic > 0644.
-// explicit reports whether a [permissions] rule decided it — only then is
+// explicit reports whether a [permissions] rule decided it - only then is
 // the mode a policy to enforce on existing files, rather than a default for
 // new ones.
 func ModeFor(rel string, sourceMode os.FileMode, rules map[string]string) (mode os.FileMode, explicit bool, err error) {

@@ -40,12 +40,12 @@ func newAddCmd() *cobra.Command {
 		Long: `One command for two jobs:
 
   adopt   a file strata doesn't manage yet: it lands in base/ (or --layer)
-  absorb  edits you made directly in $HOME on a managed file — the drifted
+  absorb  edits you made directly in $HOME on a managed file - the drifted
           content becomes the repo content and the file reads clean again
 
 Default target layer is whichever layer currently wins for that file,
 else base. If the repo can't be planned (e.g. an undefined {{var}}), add
-refuses rather than guess — fix the error, or name the layer with --layer.
+refuses rather than guess - fix the error, or name the layer with --layer.
 Paths may be ~-relative, $HOME-relative, or absolute.
 
 --layer must be a folder in the repo or one of this machine's layers. When
@@ -54,7 +54,7 @@ overrides it, or it isn't one of this machine's layers), the copy is saved
 there but $HOME is left alone, and add says which layer wins.
 
 If the file uses {{var}} substitution you'll get a warning: the copy you
-captured contains the expanded values — restore the {{tokens}} by hand.`,
+captured contains the expanded values - restore the {{tokens}} by hand.`,
 		Example: `  strata add .vimrc              adopt a new file into base/
   strata add .zshrc              absorb your local .zshrc edits
   strata add .Brewfile --layer mac`,
@@ -83,7 +83,7 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 			} else {
 				// The target is the layer that wins for rel. If planning fails we
 				// can't know it, and guessing base/ could push a work-only file
-				// to every machine — refuse instead.
+				// to every machine - refuse instead.
 				items, err := app.plan()
 				if err != nil {
 					return fmt.Errorf("can't tell which layer %s belongs in: %w (fix that, or pass --layer)", rel, err)
@@ -100,7 +100,7 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 			for _, s := range app.Cfg.Substitute {
 				if s == rel {
 					fmt.Fprintf(cmd.ErrOrStderr(),
-						"warning: %s uses {{var}} substitution — you just captured the EXPANDED values; restore the {{tokens}} by hand (strata edit %s)\n", rel, rel)
+						"warning: %s uses {{var}} substitution - you just captured the EXPANDED values; restore the {{tokens}} by hand (strata edit %s)\n", rel, rel)
 				}
 			}
 			info, err := os.Stat(homePath)
@@ -117,7 +117,7 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 			// Only when target is the layer this machine gets rel from do
 			// $HOME and the layers agree, so only then is the $HOME copy
 			// recorded as applied. Recording it otherwise made the next apply
-			// "update" $HOME back to the winning layer's copy — or, for a
+			// "update" $HOME back to the winning layer's copy - or, for a
 			// layer this machine doesn't use, delete the file as removed.
 			winner, err := winningLayer(app.Cfg.RepoDir, rel, order, app.Cfg.Ignore)
 			if err != nil {
@@ -138,10 +138,10 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 				return st.Save(app.Paths.State)
 			case winner != "":
 				fmt.Fprintf(cmd.ErrOrStderr(),
-					"warning: %s/%s wins on this machine, so $HOME keeps getting that copy and your $HOME file is left as it is — to use it here too: strata add %s --layer %s\n",
+					"warning: %s/%s wins on this machine, so $HOME keeps getting that copy and your $HOME file is left as it is - to use it here too: strata add %s --layer %s\n",
 					winner, rel, rel, winner)
 			case !slices.Contains(order, target):
-				fmt.Fprintf(out, "note: %s isn't one of this machine's layers (%s), so strata doesn't manage %s here — the $HOME copy is left as it is\n",
+				fmt.Fprintf(out, "note: %s isn't one of this machine's layers (%s), so strata doesn't manage %s here - the $HOME copy is left as it is\n",
 					target, strings.Join(order, ", "), rel)
 			default:
 				fmt.Fprintf(out, "note: %s matches an ignore pattern, so strata doesn't manage it\n", rel)
@@ -156,7 +156,7 @@ captured contains the expanded values — restore the {{tokens}} by hand.`,
 // checkTargetLayer rejects a --layer that is neither a folder in the repo
 // nor one of this machine's layers: that's a typo, and add used to create a
 // brand-new layer folder for it. A layer of this machine's own stack may
-// not have a folder yet — add is how its first file gets there.
+// not have a folder yet - add is how its first file gets there.
 func checkTargetLayer(repoDir, target string, order []string) error {
 	if err := layers.ValidName(target); err != nil {
 		return err
@@ -167,12 +167,12 @@ func checkTargetLayer(repoDir, target string, order []string) error {
 	if info, err := os.Stat(filepath.Join(repoDir, target)); err == nil && info.IsDir() {
 		return nil
 	}
-	return fmt.Errorf("no layer %q: it isn't a folder in %s, and this machine's layers are %s — typo? (to start a new layer, create its folder first)",
+	return fmt.Errorf("no layer %q: it isn't a folder in %s, and this machine's layers are %s - typo? (to start a new layer, create its folder first)",
 		target, repoDir, strings.Join(order, ", "))
 }
 
-// winningLayer returns the layer this machine gets rel from — the last one
-// in order that holds it — or "" if none does or rel is ignored. It reads
+// winningLayer returns the layer this machine gets rel from - the last one
+// in order that holds it - or "" if none does or rel is ignored. It reads
 // the layer folders directly, so it works even when the full plan can't be
 // built (an undefined {{var}} in some other file).
 func winningLayer(repoDir, rel string, order, ignore []string) (string, error) {

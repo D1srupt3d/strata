@@ -4,7 +4,7 @@
 // first failure: a broken machine.toml hides a missing repo, which hides a
 // hook for a file that doesn't exist. Doctor runs each check on its own and
 // lists them all, each with a fix. A check whose input failed to load is
-// reported as skipped, naming what it needed — never silently dropped.
+// reported as skipped, naming what it needed - never silently dropped.
 //
 // Checks call the packages apply uses (config, layers, perms, subst, state)
 // rather than restating their rules, so doctor reports what apply would hit.

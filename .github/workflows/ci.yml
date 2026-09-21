@@ -37,7 +37,7 @@ jobs:
       # run on, so a Linux-only run never checks lock_windows.go or the
       # Windows paths through the standard library. (gofmt is the same on
       # every OS, so Linux alone is enough for it.) govulncheck fails when a
-      # known vulnerability reaches code strata actually calls — in a
+      # known vulnerability reaches code strata actually calls - in a
       # dependency, or in the standard library of the Go version in go.mod.
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...

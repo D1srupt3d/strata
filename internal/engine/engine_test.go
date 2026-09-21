@@ -15,7 +15,7 @@ import (
 )
 
 // mustWrite writes a fixture file (creating parents), failing the test on
-// error — a fixture that silently didn't get written makes the real failure
+// error - a fixture that silently didn't get written makes the real failure
 // unreadable.
 func mustWrite(t *testing.T, path, content string) {
 	t.Helper()
@@ -70,8 +70,8 @@ func plan(t *testing.T, cfg config.Config, home string, st state.State) map[stri
 }
 
 // Ignoring a file must mean "forget it", not "delete it". A path that was
-// managed before and is now ignored — .DS_Store that strata used to copy, or a
-// settings.json the user decided isn't a real dotfile — must be dropped from
+// managed before and is now ignored - .DS_Store that strata used to copy, or a
+// settings.json the user decided isn't a real dotfile - must be dropped from
 // the plan entirely, leaving the $HOME copy alone. Treating it as Removed
 // would make adding one ignore line silently delete live config.
 func TestIgnoredFileIsForgottenNotDeleted(t *testing.T) {
@@ -180,7 +180,7 @@ func TestRoleLayerMustBeAFolderName(t *testing.T) {
 }
 
 // The documented exception: a repo folder that doesn't exist at all (moved or
-// deleted) still reads as an empty repo, so every managed file is Removed —
+// deleted) still reads as an empty repo, so every managed file is Removed -
 // README "Order matters". Only a missing layer inside a real repo is a typo.
 func TestMissingRepoStillPlansRemovals(t *testing.T) {
 	cfg, home := fixture(t)
@@ -282,7 +282,7 @@ func TestRunHooks(t *testing.T) {
 }
 
 // Hooks run in the directory they're given ($HOME), not wherever strata was
-// started from — so relative paths in hook commands mean the same thing on
+// started from - so relative paths in hook commands mean the same thing on
 // every run.
 func TestRunHooksRunsInGivenDir(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -330,7 +330,7 @@ func TestRunHooksRunsAllAndReportsDone(t *testing.T) {
 
 // A [permissions] rule added after a file was applied must still reach it.
 // Content matching isn't enough: .zshrc at 0644 is not "clean" under a 600
-// rule. The fix is a chmod, not a rewrite — so it must not count as a
+// rule. The fix is a chmod, not a rewrite - so it must not count as a
 // written file, or hooks for unchanged content would fire.
 func TestPermissionRuleReachesUnchangedFile(t *testing.T) {
 	if runtime.GOOS == "windows" {

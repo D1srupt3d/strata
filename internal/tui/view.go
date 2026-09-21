@@ -258,7 +258,7 @@ func (m Model) filesView(bodyH int) string {
 		if wide {
 			for _, osw := range []string{r.Mac, r.Linux, r.Win} {
 				if osw == "" {
-					line += cell(padr("—", osW), cDisabled)
+					line += cell(padr("-", osW), cDisabled)
 				} else {
 					line += cell(padr(osw, osW), cFaint)
 				}
@@ -273,7 +273,7 @@ func (m Model) filesView(bodyH int) string {
 			}
 			line += cell(strings.Repeat(" ", pad), cBody) + b
 		} else {
-			line += cell(padl("—", statusW), cDisabled)
+			line += cell(padl("-", statusW), cDisabled)
 		}
 		rows = append(rows, line)
 	}
@@ -390,11 +390,11 @@ func driftLabel(st engine.FileStatus) string {
 	case engine.Update:
 		return "PENDING UPDATE (repo → $HOME)"
 	case engine.Conflict:
-		return "CONFLICT — repo and $HOME both changed"
+		return "CONFLICT - repo and $HOME both changed"
 	case engine.Unmanaged:
-		return "UNMANAGED — existing file differs from repo"
+		return "UNMANAGED - existing file differs from repo"
 	case engine.Chmod:
-		return "MODE FIX — content matches; apply sets the file mode"
+		return "MODE FIX - content matches; apply sets the file mode"
 	}
 	return ""
 }
@@ -426,7 +426,7 @@ func (m Model) overlayView(bodyH int) string {
 
 	dash := func(v string) string {
 		if v == "" {
-			return "—"
+			return "-"
 		}
 		return v
 	}
@@ -441,7 +441,7 @@ func (m Model) overlayView(bodyH int) string {
 		b = append(b, "")
 	}
 
-	last := "—"
+	last := "-"
 	if r.LastHash != "" {
 		last = "hash " + r.LastHash
 	}
@@ -499,7 +499,7 @@ func chromeTitle(mw int, r Row) string {
 // noteFor mirrors the design's provenance note under SOURCE → DESTINATION.
 func (m Model) noteFor(r Row) string {
 	if !r.Resolved {
-		return "provided by " + strings.Join(r.Providers, ", ") + " — layer inactive here"
+		return "provided by " + strings.Join(r.Providers, ", ") + " - layer inactive here"
 	}
 	var earlier, later []string
 	seenWinner := false
@@ -547,7 +547,7 @@ func (m Model) diffView(bodyH int) string {
 		end = len(lines)
 	}
 	out := []string{lipgloss.NewStyle().Foreground(cMuted).Render(
-		fmt.Sprintf(" diff — %s · ↑↓ scroll · esc back (%d/%d)", r.Rel, end, len(lines)))}
+		fmt.Sprintf(" diff - %s · ↑↓ scroll · esc back (%d/%d)", r.Rel, end, len(lines)))}
 	for _, l := range lines[off:end] {
 		out = append(out, " "+colorDiffLine(trunc(l, m.w-2)))
 	}

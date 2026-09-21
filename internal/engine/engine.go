@@ -151,7 +151,7 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 		// state.json is plain JSON on disk. A path in it that climbs out of
 		// $HOME (hand-edited, corrupted) is never strata's to delete.
 		if !filepath.IsLocal(filepath.FromSlash(rel)) {
-			return nil, fmt.Errorf("the state file lists %q, which is outside your home folder — refusing to touch it (remove that entry from state.json)", rel)
+			return nil, fmt.Errorf("the state file lists %q, which is outside your home folder - refusing to touch it (remove that entry from state.json)", rel)
 		}
 		// Ignoring is not removing. A path strata used to write and now
 		// ignores drops out of the plan entirely, so the $HOME copy survives
@@ -218,7 +218,7 @@ func BlockedList(blocked []Item) string {
 	for _, it := range blocked {
 		fmt.Fprintf(&b, "\n  %-9s %s", it.Status, it.Rel)
 		if it.Symlink {
-			b.WriteString(" (a symlink — strata won't replace it; --force swaps in a regular file)")
+			b.WriteString(" (a symlink - strata won't replace it; --force swaps in a regular file)")
 		}
 	}
 	return b.String()
@@ -296,7 +296,7 @@ func modeNeedsFix(path string, want os.FileMode, explicit bool, goos string) (bo
 // RunHooks runs the hook for each rel, in sorted order, with dir ($HOME) as
 // the working directory so relative paths in a hook are stable. Every hook
 // runs even if an earlier one fails. done lists the rels needing no further
-// attention — succeeded, or no hook configured anymore — so the caller can
+// attention - succeeded, or no hook configured anymore - so the caller can
 // keep only the failures queued for retry. Hook commands come from the
 // user's own dots.toml and are deliberately run through the shell, like git
 // hooks (see README "Security note").

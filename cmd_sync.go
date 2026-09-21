@@ -13,7 +13,7 @@ func newSyncCmd() *cobra.Command {
 		Long: `Runs 'git pull --ff-only' in the dotfiles repo, then apply. The
 "give me my other machine's latest changes" command.
 
-strata doesn't wrap git beyond this — commit and push in the repo with
+strata doesn't wrap git beyond this - commit and push in the repo with
 git as usual.`,
 		Example: `  strata sync`,
 		RunE: func(cmd *cobra.Command, args []string) error {

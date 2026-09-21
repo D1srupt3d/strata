@@ -26,7 +26,7 @@ func checkInstall(r *report, in Inputs) {
 	}
 
 	if gitPath, err := in.LookPath("git"); err != nil {
-		r.add(Warn, "git", "not found on PATH — 'strata init <url>' and 'strata sync' need it", "install git")
+		r.add(Warn, "git", "not found on PATH - 'strata init <url>' and 'strata sync' need it", "install git")
 	} else {
 		r.add(OK, "git", gitPath, "")
 	}

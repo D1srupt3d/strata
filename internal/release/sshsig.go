@@ -18,7 +18,7 @@ import (
 //	"SSHSIG" ‖ string(namespace) ‖ string(reserved) ‖ string(hash_alg) ‖ string(H(msg))
 //
 // where string(x) is a big-endian uint32 length followed by x. Only ed25519
-// keys are accepted — that is what the release key is.
+// keys are accepted - that is what the release key is.
 
 const sshsigMagic = "SSHSIG"
 

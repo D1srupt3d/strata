@@ -15,7 +15,7 @@ func newEditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit <file>",
 		Short: "Open the winning layer's source in your editor, then offer to apply",
-		Long: `Opens the source file in the layer that wins on this machine — you never
+		Long: `Opens the source file in the layer that wins on this machine - you never
 have to remember which layer that is. When the editor exits, shows the
 diff and offers to apply immediately (edit-and-apply in one step).
 
@@ -24,7 +24,7 @@ GUI editors must be told to wait until the file is closed ("code --wait"),
 or strata shows the diff before you've made your edit.
 
 To edit a non-winning layer's copy (e.g. base/.gitconfig while work/
-overrides it), just open that file directly — it's a plain file.`,
+overrides it), just open that file directly - it's a plain file.`,
 		Example: `  strata edit .zshrc
   EDITOR="code --wait" strata edit .gitconfig`,
 		Args: cobra.ExactArgs(1),
@@ -70,7 +70,7 @@ overrides it), just open that file directly — it's a plain file.`,
 }
 
 // editorCommand runs the user's editor on file: $VISUAL, then $EDITOR, then
-// vi — git's order. The value may carry arguments ("code --wait"), so on
+// vi - git's order. The value may carry arguments ("code --wait"), so on
 // Unix it goes through sh exactly as git does; Windows splits on spaces.
 func editorCommand(file string) *exec.Cmd {
 	editor := strings.TrimSpace(os.Getenv("VISUAL"))

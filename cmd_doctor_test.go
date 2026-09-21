@@ -58,7 +58,7 @@ func TestDoctorExitsOneOnErrorAndKeepsGoing(t *testing.T) {
 	}
 }
 
-// The sandbox repo has no .git, which is a warning — and warnings alone
+// The sandbox repo has no .git, which is a warning - and warnings alone
 // exit 0. (On a dev machine PATH may add a warning of its own; still exit 0.)
 func TestDoctorWarningsAloneExitZero(t *testing.T) {
 	s := sandbox(t)

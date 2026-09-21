@@ -12,7 +12,7 @@ import (
 )
 
 // loaded is what checkConfig managed to load. Later groups run the checks
-// whose inputs are here, and report Skip — naming the dependency — for the rest.
+// whose inputs are here, and report Skip - naming the dependency - for the rest.
 type loaded struct {
 	machine bool          // machine.toml parsed
 	repo    bool          // the repo folder exists
@@ -46,10 +46,10 @@ func checkConfig(r *report, in Inputs) loaded {
 	}
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			r.add(Error, "repo", err.Error()+" — every command reads a missing repo as an empty one, so every managed file reads as removed and apply would delete them",
+			r.add(Error, "repo", err.Error()+" - every command reads a missing repo as an empty one, so every managed file reads as removed and apply would delete them",
 				"clone your dotfiles repo there, or set repo in machine.toml to where it is")
 		} else {
-			r.add(Error, "repo", err.Error()+" — commands that read the repo fail until this is fixed",
+			r.add(Error, "repo", err.Error()+" - commands that read the repo fail until this is fixed",
 				"set repo in machine.toml to your dotfiles folder")
 		}
 		r.add(Skip, "git, dots.toml, layers", "need the repo folder", "")
@@ -59,7 +59,7 @@ func checkConfig(r *report, in Inputs) loaded {
 	r.add(OK, "repo", mc.Repo, "")
 
 	// .git is a folder in a normal clone and a file in a worktree; either
-	// counts, at the repo itself or at any ancestor — 'strata init' and
+	// counts, at the repo itself or at any ancestor - 'strata init' and
 	// 'strata sync' both work when the dotfiles repo is a subfolder of a
 	// git repo. git itself isn't run: doctor only reads.
 	found := false

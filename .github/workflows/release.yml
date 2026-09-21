@@ -27,7 +27,7 @@ jobs:
       - run: go test ./...
       # The key reaches the shell only through an env var (never spliced
       # into the script text), lands in a 0600 temp file, and a missing
-      # secret fails the release — strata never publishes unsigned.
+      # secret fails the release - strata never publishes unsigned.
       - name: Load release signing key
         env:
           STRATA_RELEASE_KEY: ${{ secrets.STRATA_RELEASE_KEY }}
@@ -46,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Belt and braces: check the published signature against the public
-      # key in the repo — the same check `strata upgrade` and get.sh make.
+      # key in the repo - the same check `strata upgrade` and get.sh make.
       - name: Verify release signature
         run: |
           printf 'strata-release namespaces="strata-release" %s\n' "$(cat internal/release/release_key.pub)" > "$RUNNER_TEMP/allowed_signers"
@@ -57,7 +57,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/strata_release_key"
       # Signed build provenance for every archive and checksums.txt: proof a
       # binary was built by this workflow from this repo. checksums.txt alone
-      # only proves a download wasn't corrupted — it ships from the same place
+      # only proves a download wasn't corrupted - it ships from the same place
       # as the binary. Verify with: gh attestation verify <file> --repo D1srupt3d/strata
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

@@ -22,11 +22,11 @@ func checkState(r *report, in Inputs, l loaded) {
 	st, err := state.Load(in.StatePath)
 	if err != nil {
 		r.add(Error, "state.json", err.Error(),
-			"written by a newer strata: run 'strata upgrade'. Corrupt: move it aside and run 'strata apply' — files that already match are adopted again, and ones that differ show as unmanaged instead of being overwritten")
+			"written by a newer strata: run 'strata upgrade'. Corrupt: move it aside and run 'strata apply' - files that already match are adopted again, and ones that differ show as unmanaged instead of being overwritten")
 		return
 	}
 	if _, err := os.Stat(in.StatePath); errors.Is(err, fs.ErrNotExist) {
-		r.add(OK, "state.json", "none yet — nothing has been applied on this machine", "")
+		r.add(OK, "state.json", "none yet - nothing has been applied on this machine", "")
 	} else {
 		word := "files"
 		if len(st.Files) == 1 {
@@ -57,7 +57,7 @@ func checkState(r *report, in Inputs, l loaded) {
 				r.add(Warn, subject, "strata wrote this file, but it is gone from your home folder",
 					"run 'strata apply': it writes the file again, or forgets it if no layer provides it anymore")
 			} else {
-				r.add(Error, subject, err.Error(), "check the permissions of that file and the folders above it — apply fails on it too")
+				r.add(Error, subject, err.Error(), "check the permissions of that file and the folders above it - apply fails on it too")
 			}
 		}
 	}

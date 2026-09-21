@@ -77,8 +77,8 @@ func mkLayer(t *testing.T, repo, layer, rel, content string) {
 	}
 }
 
-// OS junk files land in layer dirs on their own — Finder writes .DS_Store the
-// moment you open the repo — so they are never dotfiles, at any depth.
+// OS junk files land in layer dirs on their own - Finder writes .DS_Store the
+// moment you open the repo - so they are never dotfiles, at any depth.
 func TestResolveSkipsDefaultJunk(t *testing.T) {
 	repo := t.TempDir()
 	mkLayer(t, repo, "base", ".zshrc", "z")

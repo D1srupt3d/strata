@@ -43,7 +43,7 @@ func TestWriteFileAtomic(t *testing.T) {
 // Folders WriteFileAtomic creates are as private as the file that needed
 // them: ~/.ssh/config at 600 used to get a ~/.ssh anyone could list (755),
 // and gpg warns about a ~/.gnupg like that. Folders that already exist keep
-// their mode — strata never tightens or loosens those.
+// their mode - strata never tightens or loosens those.
 func TestWriteFileAtomicMakesNewFoldersAsPrivateAsTheFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("no POSIX modes on Windows")

@@ -1,18 +1,18 @@
 #!/bin/sh
 # strata installer for new machines: downloads the latest release, verifies
-# its signature and checksum, and installs the binary — no git clone, no Go.
+# its signature and checksum, and installs the binary - no git clone, no Go.
 #
 #   curl -fsSL https://raw.githubusercontent.com/D1srupt3d/strata/main/get.sh | sh
 #
 # Afterwards, update with `strata upgrade`. Re-running this reinstalls the
 # latest release (it's also the recovery path if the release key changes).
 # Installs to ~/.local/bin; override with STRATA_BIN_DIR=/somewhere. macOS and
-# Linux only — on Windows, download the .zip from the releases page.
+# Linux only - on Windows, download the .zip from the releases page.
 set -eu
 
 API="${STRATA_RELEASE_API:-https://api.github.com/repos/D1srupt3d/strata/releases/latest}"
 BIN_DIR="${STRATA_BIN_DIR:-$HOME/.local/bin}"
-# The strata release-signing public key — the same key strata embeds in
+# The strata release-signing public key - the same key strata embeds in
 # internal/release/release_key.pub (a test keeps the two identical).
 TRUSTED_KEY="${STRATA_GET_TRUSTED_KEY:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJHxsY5942gsckPie8B1lzG5HYmhqZhnpj+FqQ7k2grQ}"
 NAMESPACE=strata-release
@@ -36,12 +36,12 @@ fi
 case "$(uname -s)" in
 Darwin) os=darwin ;;
 Linux) os=linux ;;
-*) die "unsupported OS $(uname -s) — download a release from $RELEASES" ;;
+*) die "unsupported OS $(uname -s) - download a release from $RELEASES" ;;
 esac
 case "$(uname -m)" in
 arm64 | aarch64) arch=arm64 ;;
 x86_64 | amd64) arch=amd64 ;;
-*) die "unsupported CPU $(uname -m) — download a release from $RELEASES" ;;
+*) die "unsupported CPU $(uname -m) - download a release from $RELEASES" ;;
 esac
 
 tmp=$(mktemp -d)
@@ -61,7 +61,7 @@ asset_url() {
 }
 for f in "$archive" checksums.txt checksums.txt.sig; do
     url=$(asset_url "$f")
-    [ -n "$url" ] || die "release $tag has no $f — nothing installed (releases from before signing can't be installed this way)"
+    [ -n "$url" ] || die "release $tag has no $f - nothing installed (releases from before signing can't be installed this way)"
     curl -fsSL "$url" -o "$tmp/$f" || die "download failed: $f"
 done
 
@@ -73,23 +73,23 @@ if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I strata-release -n "$NAMES
     # An ssh-keygen older than OpenSSH 8.1 has no -Y at all: say so, rather
     # than let it look like a forged release.
     if grep -qiE '(illegal|unknown|invalid) option' "$tmp/verify.err"; then
-        die "this ssh-keygen can't check signatures (that needs OpenSSH 8.1 or newer; 'ssh -V' shows yours) — nothing installed"
+        die "this ssh-keygen can't check signatures (that needs OpenSSH 8.1 or newer; 'ssh -V' shows yours) - nothing installed"
     fi
-    die "signature check FAILED for release $tag — nothing installed"
+    die "signature check FAILED for release $tag - nothing installed"
 fi
 
 # 2. The archive must be exactly the one that was signed.
 want=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")
 have=$(sha256 "$tmp/$archive")
-{ [ -n "$want" ] && [ "$want" = "$have" ]; } || die "checksum mismatch for $archive — nothing installed"
+{ [ -n "$want" ] && [ "$want" = "$have" ]; } || die "checksum mismatch for $archive - nothing installed"
 
 # 3. Take only the binary, and make sure it runs.
 mkdir "$tmp/x"
-tar -xzf "$tmp/$archive" -C "$tmp/x" strata 2>/dev/null || die "$archive has no strata binary — nothing installed"
+tar -xzf "$tmp/$archive" -C "$tmp/x" strata 2>/dev/null || die "$archive has no strata binary - nothing installed"
 chmod 755 "$tmp/x/strata"
-got=$("$tmp/x/strata" --version 2>/dev/null) || die "the downloaded strata won't run — nothing installed"
+got=$("$tmp/x/strata" --version 2>/dev/null) || die "the downloaded strata won't run - nothing installed"
 [ "$got" = "strata version $version" ] ||
-    die "the downloaded strata reports '$got', not version $version — nothing installed"
+    die "the downloaded strata reports '$got', not version $version - nothing installed"
 
 # 4. Install atomically (copy next to the target, then rename over it).
 mkdir -p "$BIN_DIR"
@@ -100,7 +100,7 @@ cp "$tmp/x/strata" "$BIN_DIR/.strata-new.$$"
 mv -f "$BIN_DIR/.strata-new.$$" "$BIN_DIR/strata"
 echo "installed $BIN_DIR/strata ($("$BIN_DIR/strata" --version))"
 
-# PATH: same rules as install.sh — a login profile, never a managed rc file.
+# PATH: same rules as install.sh - a login profile, never a managed rc file.
 case ":$PATH:" in
 *":$BIN_DIR:"*) ;;
 *)
@@ -119,6 +119,6 @@ esac
 
 found=$(command -v strata 2>/dev/null || true)
 if [ -n "$found" ] && [ "$found" != "$BIN_DIR/strata" ]; then
-    echo "note: $found comes first on your PATH — that's the one 'strata' runs"
+    echo "note: $found comes first on your PATH - that's the one 'strata' runs"
 fi
 echo "to update later: strata upgrade"

@@ -1,6 +1,6 @@
 version: 2
 
-# Tags must be un-padded CalVer (v2026.8.0, not v2026.08.0) — GoReleaser
+# Tags must be un-padded CalVer (v2026.8.0, not v2026.08.0) - GoReleaser
 # enforces semver and rejects the zero-padded month.
 
 builds:
@@ -11,7 +11,7 @@ builds:
     goarch: [amd64, arm64]
     ldflags:
       # channel=release marks official builds; only these `strata upgrade`
-      # themselves (source builds default to "source" — see main.go).
+      # themselves (source builds default to "source" - see main.go).
       - -s -w -X main.version={{.Version}} -X main.channel=release
 
 archives:

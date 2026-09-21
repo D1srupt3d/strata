@@ -5,7 +5,7 @@ import (
 )
 
 // Model is the bubbletea model. All data is computed once at launch (in
-// Snapshot); Update only moves selection/tab/overlay state — the TUI is
+// Snapshot); Update only moves selection/tab/overlay state - the TUI is
 // strictly read-only.
 type Model struct {
 	snap    *Snapshot

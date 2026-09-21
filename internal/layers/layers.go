@@ -60,7 +60,7 @@ func Order(roleLayers []string, goos, osRelease string) []string {
 // "a/b" would reach into another layer.
 func ValidName(name string) error {
 	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-		return fmt.Errorf("%q is not a layer name — a layer is a folder directly inside the repo", name)
+		return fmt.Errorf("%q is not a layer name - a layer is a folder directly inside the repo", name)
 	}
 	return nil
 }
@@ -68,7 +68,7 @@ func ValidName(name string) error {
 // CheckRoles verifies that every role layer names a folder in the repo. OS
 // layers are optional (most repos have no windows/), but a role layer is one
 // you typed: a missing folder is a typo, and skipping it would make every
-// file it provides read "removed" — so apply would delete them. A repo
+// file it provides read "removed" - so apply would delete them. A repo
 // folder that doesn't exist at all is the documented exception (README
 // "Order matters"): it reads as an empty repo, so there is nothing to check.
 func CheckRoles(repoDir string, roles []string) error {
@@ -85,14 +85,14 @@ func CheckRoles(repoDir string, roles []string) error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("role layer %s has no folder in %s — typo?", strings.Join(missing, ", "), repoDir)
+		return fmt.Errorf("role layer %s has no folder in %s - typo?", strings.Join(missing, ", "), repoDir)
 	}
 	return nil
 }
 
 // DefaultIgnore are patterns no repo ever wants managed. These files are
-// written *into* layer dirs by the OS file browser, not by the user — Finder
-// drops .DS_Store the moment the repo window is opened — so they would
+// written *into* layer dirs by the OS file browser, not by the user - Finder
+// drops .DS_Store the moment the repo window is opened - so they would
 // otherwise resolve as dotfiles and be copied to every machine. Always
 // applied, on every OS: a mac-authored .DS_Store is just as meaningless on
 // Linux, and a repo is often edited from more than one platform.
@@ -126,7 +126,7 @@ func allPatterns(ignore []string) []string {
 }
 
 // Ignored reports whether rel is excluded. Exported because the engine must
-// ask the same question about paths that exist only in state.json — a file
+// ask the same question about paths that exist only in state.json - a file
 // recorded by an earlier apply and ignored since is not "gone from the
 // layers", it is simply no longer ours, and must not be deleted from $HOME.
 func Ignored(rel string, ignore []string) (bool, error) {
@@ -136,7 +136,7 @@ func Ignored(rel string, ignore []string) (bool, error) {
 // Resolve walks each existing layer dir in order and returns
 // rel path (forward slashes) → absolute winning source path. Files matching
 // DefaultIgnore or one of the caller's ignore patterns are skipped entirely,
-// so they never become managed — and so never surface as unmanaged either.
+// so they never become managed - and so never surface as unmanaged either.
 func Resolve(repoDir string, order []string, ignore []string) (map[string]string, error) {
 	patterns := allPatterns(ignore)
 	out := map[string]string{}

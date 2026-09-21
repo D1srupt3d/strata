@@ -67,7 +67,7 @@ func TestExtractBinaryFromZip(t *testing.T) {
 }
 
 // Only an entry named exactly the binary, at the archive root, counts. A
-// "../strata" or "sub/strata" is never taken — and nothing is ever written
+// "../strata" or "sub/strata" is never taken - and nothing is ever written
 // to disk from archive paths, so traversal can't escape anywhere.
 func TestExtractBinaryOnlyTakesTheRootEntry(t *testing.T) {
 	a := tarGz(t, map[string]string{"../strata": "evil", "sub/strata": "nested", "README.md": "docs"})

@@ -61,7 +61,7 @@ type Snapshot struct {
 	Layers      []Layer
 	Rows        []Row
 	Vars        []VarRow
-	UsedBy      [][2]string // substituted file → var list ("—" if none)
+	UsedBy      [][2]string // substituted file → var list ("-" if none)
 	Hooks       [][2]string
 	Perms       [][2]string
 	Kind        map[string]string // layer name → kind (for coloring)
@@ -327,7 +327,7 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		case vr.From == "dots.toml":
 			vr.Default = "same"
 		case !hasDef:
-			vr.Default = "—"
+			vr.Default = "-"
 		case def == vr.Value:
 			vr.Default = "same"
 		default:
@@ -344,7 +344,7 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 	substSorted := append([]string(nil), cfg.Substitute...)
 	sort.Strings(substSorted)
 	for _, rel := range substSorted {
-		val := "—"
+		val := "-"
 		if r, ok := rowByRel[rel]; ok && len(r.SubstVars) > 0 {
 			var vn []string
 			for _, v := range r.SubstVars {

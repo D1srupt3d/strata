@@ -15,14 +15,14 @@ func newStatusCmd() *cobra.Command {
 		Long: `Shows every managed file that needs attention (clean files are summarized).
 
 Statuses:
-  create     file doesn't exist in $HOME yet — apply will write it
-  update     repo changed, you haven't touched the $HOME copy — apply writes it
-  drifted    you edited the $HOME copy — apply refuses; keep it with 'strata add'
-  conflict   repo AND $HOME both changed — inspect with 'strata diff', pick a side
-  unmanaged  file exists but strata never wrote it — first-apply protection
-  removed    no layer provides it anymore — apply deletes it from $HOME
-  chmod      content matches but the file mode doesn't — apply fixes the mode
-  hook       a hook failed or was interrupted — apply retries it
+  create     file doesn't exist in $HOME yet - apply will write it
+  update     repo changed, you haven't touched the $HOME copy - apply writes it
+  drifted    you edited the $HOME copy - apply refuses; keep it with 'strata add'
+  conflict   repo AND $HOME both changed - inspect with 'strata diff', pick a side
+  unmanaged  file exists but strata never wrote it - first-apply protection
+  removed    no layer provides it anymore - apply deletes it from $HOME
+  chmod      content matches but the file mode doesn't - apply fixes the mode
+  hook       a hook failed or was interrupted - apply retries it
   clean      $HOME matches the repo-built content
 
 Exit status: 0 when everything is clean, 1 when anything needs attention.`,

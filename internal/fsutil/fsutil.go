@@ -19,7 +19,7 @@ func Hash(data []byte) string {
 // parent directories, as private as the file: 0700 when mode gives group
 // and others nothing (~/.ssh for a 600 config), else 0755; directories that
 // already exist keep their mode. Like any rename-into-place, it replaces a
-// symlink at path with a regular file — callers that must preserve links
+// symlink at path with a regular file - callers that must preserve links
 // check first.
 func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)

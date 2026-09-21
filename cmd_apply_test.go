@@ -22,7 +22,7 @@ func hookSandbox(t *testing.T) sandboxEnv {
 }
 
 // A hook that fails must run again on the next apply, even though its file
-// is clean by then — otherwise one failed `brew bundle` is never retried.
+// is clean by then - otherwise one failed `brew bundle` is never retried.
 func TestFailedHookIsRetriedOnNextApply(t *testing.T) {
 	s := hookSandbox(t)
 	if _, err := run(t, "apply"); err == nil {

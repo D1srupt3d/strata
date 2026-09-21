@@ -36,7 +36,7 @@ is left exactly as it was.
 Only release builds replace themselves:
   - Homebrew installs: use 'brew upgrade strata'.
   - Built from source (install.sh, go build): update it the way you built it
-    — 'git pull && sh install.sh' — or switch to release builds with get.sh.`,
+    - 'git pull && sh install.sh' - or switch to release builds with get.sh.`,
 		Example: `  strata upgrade           install the latest release
   strata upgrade --check   is there a newer release? (exit 1 if so)
   strata upgrade --force   reinstall the current release`,
@@ -59,7 +59,7 @@ Only release builds replace themselves:
 				target = resolved // replace the real file, not a symlink to it
 			}
 			if isHomebrewPath(target) {
-				return fmt.Errorf("%s is managed by Homebrew — run 'brew upgrade strata'", target)
+				return fmt.Errorf("%s is managed by Homebrew - run 'brew upgrade strata'", target)
 			}
 			release.CleanupOld(target)
 			opts := release.Options{
@@ -73,13 +73,13 @@ Only release builds replace themselves:
 
 			if channel != "release" {
 				if !check {
-					return fmt.Errorf("this strata (%s) was built from source, so it's yours to update: 'git pull && sh install.sh' in your checkout — or switch to release builds with get.sh", version)
+					return fmt.Errorf("this strata (%s) was built from source, so it's yours to update: 'git pull && sh install.sh' in your checkout - or switch to release builds with get.sh", version)
 				}
 				latest, _, err := release.Latest(ctx, opts)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(out, "latest release: %s (this strata, %s, is a source build — update it with 'git pull && sh install.sh')\n", latest, version)
+				fmt.Fprintf(out, "latest release: %s (this strata, %s, is a source build - update it with 'git pull && sh install.sh')\n", latest, version)
 				return nil
 			}
 

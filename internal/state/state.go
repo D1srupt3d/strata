@@ -14,7 +14,7 @@ import (
 )
 
 // formatVersion is the state.json schema this build reads and writes. Bump
-// it — and teach Load to migrate — whenever a field's meaning changes. Files
+// it - and teach Load to migrate - whenever a field's meaning changes. Files
 // from before versioning (no "version" key) read as 0 and are compatible.
 const formatVersion = 1
 
@@ -40,7 +40,7 @@ func Load(path string) (State, error) {
 		return s, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	if s.Version > formatVersion {
-		return s, fmt.Errorf("%s was written by a newer strata (state format v%d; this build reads up to v%d) — upgrade strata",
+		return s, fmt.Errorf("%s was written by a newer strata (state format v%d; this build reads up to v%d) - upgrade strata",
 			path, s.Version, formatVersion)
 	}
 	if s.Files == nil {
@@ -98,7 +98,7 @@ func sortedSet(set map[string]bool) []string {
 var errLocked = errors.New("locked")
 
 // Lock takes an exclusive, non-blocking lock on statePath+".lock", so two
-// strata processes can't interleave read-modify-write of the state file —
+// strata processes can't interleave read-modify-write of the state file -
 // the later save would silently drop the earlier one's updates. The OS
 // releases the lock when the process exits, so a crash can't leave a stale
 // lock behind. Callers should re-read state after locking.

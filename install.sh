@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 echo "building strata..."
 # Stamp the real build into `strata --version`. Without this every locally
 # built binary reports whatever main.go's default says, so you cannot tell an
-# up-to-date install from a month-old one — only GoReleaser sets this on tagged
+# up-to-date install from a month-old one - only GoReleaser sets this on tagged
 # builds. Tags are v-prefixed (v2026.8.0) and the version string is not, so
 # strip it. Falls back to the compiled-in default outside a git checkout
 # (tarball, `go install`), where git describe has nothing to report.
@@ -37,7 +37,7 @@ case ":$PATH:" in
     ;;
 esac
 
-# Pick the login profile for the user's shell — deliberately NOT the rc file
+# Pick the login profile for the user's shell - deliberately NOT the rc file
 # (.zshrc/.bashrc): with strata those are usually managed dotfiles, and an
 # installer edit there shows up as local drift that blocks the first apply.
 # PATH belongs in the login profile anyway.

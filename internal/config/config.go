@@ -64,19 +64,19 @@ func LoadMachineConfig(path string) (MachineConfig, error) {
 	}
 	// A relative repo would resolve against whichever folder strata runs
 	// from, so the same machine would read "clean" in one folder and
-	// "removed" in the next — and apply from the wrong one would delete.
+	// "removed" in the next - and apply from the wrong one would delete.
 	switch {
 	case mc.Repo == "":
-		return mc, fmt.Errorf("%s: repo is not set — it must be the full path to your dotfiles repo (set it, or rerun 'strata init --repo <path>')", path)
+		return mc, fmt.Errorf("%s: repo is not set - it must be the full path to your dotfiles repo (set it, or rerun 'strata init --repo <path>')", path)
 	case !filepath.IsAbs(mc.Repo):
-		return mc, fmt.Errorf("%s: repo = %q is a relative path — use the full path (or ~/...), otherwise it depends on which folder you run strata from", path, mc.Repo)
+		return mc, fmt.Errorf("%s: repo = %q is a relative path - use the full path (or ~/...), otherwise it depends on which folder you run strata from", path, mc.Repo)
 	}
 	return mc, nil
 }
 
 // rejectUnknown fails on keys the config structs don't define. The TOML
 // decoder silently drops them, so a typo like [hook] for [hooks] would
-// otherwise just never run — the kind of quiet no-op strata refuses to allow.
+// otherwise just never run - the kind of quiet no-op strata refuses to allow.
 func rejectUnknown(path string, md toml.MetaData) error {
 	seen := map[string]bool{}
 	var bad []string
@@ -90,7 +90,7 @@ func rejectUnknown(path string, md toml.MetaData) error {
 		return nil
 	}
 	sort.Strings(bad)
-	return fmt.Errorf("%s: unknown key(s) %s — typo?", path, strings.Join(bad, ", "))
+	return fmt.Errorf("%s: unknown key(s) %s - typo?", path, strings.Join(bad, ", "))
 }
 
 func ExpandTilde(p string) string {

@@ -28,7 +28,7 @@ for the files that were written.
 
 Safety rules:
   - If ANY file is drifted/conflicted/unmanaged, apply writes NOTHING and
-    lists them — keep your version with 'strata add <file>', or take the
+    lists them - keep your version with 'strata add <file>', or take the
     repo's with --force. All-or-nothing: one blocked file stops them all.
   - Writes are atomic (temp file + rename); a crash never leaves a
     half-written dotfile. If a write fails partway (disk full, a folder
@@ -53,7 +53,7 @@ Safety rules:
 }
 
 // printPlan is --dry-run: what apply would do, file by file, including the
-// all-or-nothing rule — one blocked file means apply writes nothing at all.
+// all-or-nothing rule - one blocked file means apply writes nothing at all.
 func printPlan(out io.Writer, items []engine.Item, st state.State, hooks map[string]string, force bool) {
 	lines, blocked := 0, 0
 	var hooked []string
@@ -100,7 +100,7 @@ func printPlan(out io.Writer, items []engine.Item, st state.State, hooks map[str
 	}
 }
 
-// runApply plans, writes, saves state, then runs hooks — every hook still
+// runApply plans, writes, saves state, then runs hooks - every hook still
 // pending, which includes ones that failed on an earlier apply.
 func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 	if !opts.dryRun {
@@ -128,7 +128,7 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 		return applyErr // refused, or failed before touching $HOME
 	}
 	// Queue hooks and persist the queue BEFORE running any: a hook that
-	// fails — or a crash mid-hook — stays pending and reruns next apply.
+	// fails - or a crash mid-hook - stays pending and reruns next apply.
 	// This also runs when a write failed partway: the files that did get
 	// written must be recorded with their hooks queued, or the next apply
 	// sees them clean and their hooks never run.
@@ -152,7 +152,7 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 		fmt.Fprintf(out, "removed %s\n", rel)
 	}
 	if applyErr != nil {
-		return fmt.Errorf("%w\n(what was written before the error is recorded and its hooks are queued — fix the problem, then run 'strata apply' again)", applyErr)
+		return fmt.Errorf("%w\n(what was written before the error is recorded and its hooks are queued - fix the problem, then run 'strata apply' again)", applyErr)
 	}
 	pending := app.State.PendingHooks
 	if !res.Changed() && len(pending) == 0 {

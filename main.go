@@ -15,15 +15,15 @@ import (
 	"strata/internal/state"
 )
 
-// CalVer YYYY.M.PATCH with an un-padded month (2026.8.0 — GoReleaser
+// CalVer YYYY.M.PATCH with an un-padded month (2026.8.0 - GoReleaser
 // enforces semver and rejects 2026.08.0). Release builds and install.sh
 // overwrite this via -X main.version, so the in-source value only shows up
-// in a bare `go build` — hence the -dev suffix.
+// in a bare `go build` - hence the -dev suffix.
 var version = "2026.9.0-dev"
 
 // channel says how this binary was built. GoReleaser stamps "release" via
 // -X main.channel=release; every other build (install.sh, go build) stays
-// "source". Only release builds replace themselves with `strata upgrade` —
+// "source". Only release builds replace themselves with `strata upgrade` -
 // a source build is its owner's to update. A var, like version, because -X
 // can't set a const.
 var channel = "source"
@@ -102,7 +102,7 @@ func (a *appContext) plan() ([]engine.Item, error) {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "strata",
-		Short: "strata — layered dotfiles, sanely",
+		Short: "strata - layered dotfiles, sanely",
 		Long: `strata manages your dotfiles from one git repo of real-named files.
 
 Layers stack per machine: base → OS (mac / linux / <distro> / windows) →
@@ -112,7 +112,7 @@ via dots.toml get {{var}} substitution; permission globs and post-apply
 hooks are also declared there.
 
 strata remembers what it last wrote, so it always knows the difference
-between "the repo changed", "you edited the file in $HOME", and "both" —
+between "the repo changed", "you edited the file in $HOME", and "both" -
 and never silently overwrites your local edits.
 
 Running strata with no subcommand opens a read-only TUI of the whole
@@ -135,7 +135,7 @@ hook, and permission comes from.`,
 }
 
 // exitCode lets a command set a non-zero exit status without printing an
-// error — e.g. `status` when files need attention: that's an answer, not a
+// error - e.g. `status` when files need attention: that's an answer, not a
 // failure.
 type exitCode int
 

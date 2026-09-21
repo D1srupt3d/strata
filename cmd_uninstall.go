@@ -31,7 +31,7 @@ func newUninstallCmd() *cobra.Command {
 
 It does NOT touch the dotfiles strata copied into $HOME (.zshrc, .gitconfig,
 and the rest). Those are just normal files now and stay exactly as they are.
-It also leaves your dotfiles repo alone — delete that yourself if you want it gone.
+It also leaves your dotfiles repo alone - delete that yourself if you want it gone.
 
 Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 		Example: `  strata uninstall            list what will go, ask, then remove
@@ -66,7 +66,7 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 			}
 
 			if len(files) == 0 && len(rcFiles) == 0 {
-				fmt.Fprintln(out, "nothing to remove — strata isn't installed here")
+				fmt.Fprintln(out, "nothing to remove - strata isn't installed here")
 				return nil
 			}
 
@@ -80,7 +80,7 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 			fmt.Fprintln(out, "\nYour dotfiles in $HOME and your dotfiles repo are left untouched.")
 
 			if dryRun {
-				fmt.Fprintln(out, "\n(dry run — nothing removed)")
+				fmt.Fprintln(out, "\n(dry run - nothing removed)")
 				return nil
 			}
 			if !yes {

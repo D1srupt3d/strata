@@ -7,7 +7,7 @@ import (
 )
 
 // writeTemp writes the new binary as an executable temp file in target's
-// directory — the same filesystem, so the final rename is atomic — flushed
+// directory - the same filesystem, so the final rename is atomic - flushed
 // to disk before anything else happens.
 func writeTemp(target string, data []byte) (string, error) {
 	f, err := os.CreateTemp(filepath.Dir(target), ".strata-upgrade-*")

@@ -18,7 +18,7 @@ func newDiffCmd() *cobra.Command {
 against repo/<file> (what apply would write).
 
 Because it compares in both directions, edits you made directly in $HOME
-show up too — as lines apply would remove. No drift is ever silent.`,
+show up too - as lines apply would remove. No drift is ever silent.`,
 		Example: `  strata diff
   strata diff | less`,
 		RunE: func(cmd *cobra.Command, args []string) error {

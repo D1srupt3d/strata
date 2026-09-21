@@ -59,7 +59,7 @@ func TestEditRunsEditorWithArguments(t *testing.T) {
 	}
 }
 
-// $VISUAL wins over $EDITOR — the order git and most tools use.
+// $VISUAL wins over $EDITOR - the order git and most tools use.
 func TestEditPrefersVisualOverEditor(t *testing.T) {
 	s := editSandbox(t)
 	ed, _ := fakeEditor(t)

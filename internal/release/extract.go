@@ -17,7 +17,7 @@ const maxBinary = 200 << 20
 // ExtractBinary returns the contents of the regular file named exactly name
 // at the root of a release archive ("tar.gz" or "zip"). The archive is read
 // in memory and nothing is written to disk from archive paths, and nested or
-// "../" entries are never taken — so a hostile archive can't place a file
+// "../" entries are never taken - so a hostile archive can't place a file
 // anywhere.
 func ExtractBinary(archive []byte, format, name string) ([]byte, error) {
 	switch format {
@@ -74,7 +74,7 @@ func readCapped(r io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("reading archive: %w", err)
 	}
 	if len(b) > maxBinary {
-		return nil, fmt.Errorf("archive entry is over %d MB — not a strata binary", maxBinary>>20)
+		return nil, fmt.Errorf("archive entry is over %d MB - not a strata binary", maxBinary>>20)
 	}
 	return b, nil
 }

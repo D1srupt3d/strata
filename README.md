@@ -4,12 +4,12 @@
 
 strata is a cross-platform dotfiles manager (macOS, Linux, Windows) built around three ideas:
 
-1. **Your repo mirrors your home directory.** Files keep their real names — `base/.zshrc`, not `dot_zshrc`. Grep works, tab-completion works, GitHub renders it like a home directory.
+1. **Your repo mirrors your home directory.** Files keep their real names - `base/.zshrc`, not `dot_zshrc`. Grep works, tab-completion works, GitHub renders it like a home directory.
 2. **Machine differences are layers, not templates.** A `work/` folder overrides a `base/` folder. No template language to learn for the common case.
-3. **You can't lose local edits.** strata remembers what it wrote, so it always knows the difference between "the repo changed", "you edited the file", and "both" — and refuses to clobber your work.
+3. **You can't lose local edits.** strata remembers what it wrote, so it always knows the difference between "the repo changed", "you edited the file", and "both" - and refuses to clobber your work.
 
 ```
-strata edit .zshrc     # open the real source file, see the diff, apply — one step
+strata edit .zshrc     # open the real source file, see the diff, apply - one step
 strata diff            # what would change, in BOTH directions (repo→home and home→repo)
 strata apply           # copy changes into $HOME, run hooks, never clobber local edits
 ```
@@ -26,14 +26,14 @@ curl -fsSL https://raw.githubusercontent.com/D1srupt3d/strata/main/get.sh | sh
 
 This installs `~/.local/bin/strata`, but only after checking the release's signature, its SHA-256, and that the binary runs and reports the right version. Update later with `strata upgrade`. On Windows, download the `.zip` from the [releases page](https://github.com/D1srupt3d/strata/releases).
 
-To remove strata later, run `strata uninstall`: it deletes the binary, its config and state, and the PATH line — never your dotfiles.
+To remove strata later, run `strata uninstall`: it deletes the binary, its config and state, and the PATH line - never your dotfiles.
 
 <details>
 <summary>Building from source, and what the installers change</summary>
 
 **From source:** `sh install.sh` builds the binary and copies it to `~/.local/bin/strata` (`STRATA_BIN_DIR=/somewhere` changes that). Re-run it any time to update. Or build by hand with `go build -o strata .` (`strata.exe` on Windows) and put the binary anywhere on your `PATH`. Cross-compiling is plain Go: `GOOS=linux go build`.
 
-**PATH:** if `~/.local/bin` isn't on your `PATH`, `get.sh` and `install.sh` append one `export PATH=...` line to your login profile (`~/.zprofile` for zsh; `~/.bash_profile` if it exists, else `~/.profile`), and never twice. They deliberately never edit `.zshrc`/`.bashrc`: strata manages those, and an installer edit would show up as drift that blocks your first apply. The tidiest setup is putting `export PATH="$HOME/.local/bin:$PATH"` in your repo's `base/.zshrc` — then the installers find it and touch nothing.
+**PATH:** if `~/.local/bin` isn't on your `PATH`, `get.sh` and `install.sh` append one `export PATH=...` line to your login profile (`~/.zprofile` for zsh; `~/.bash_profile` if it exists, else `~/.profile`), and never twice. They deliberately never edit `.zshrc`/`.bashrc`: strata manages those, and an installer edit would show up as drift that blocks your first apply. The tidiest setup is putting `export PATH="$HOME/.local/bin:$PATH"` in your repo's `base/.zshrc` - then the installers find it and touch nothing.
 
 **Signature check:** `get.sh` uses `ssh-keygen -Y`, which needs OpenSSH 8.1 or newer (`ssh -V`; any macOS or Linux from the last few years has it).
 
@@ -41,7 +41,7 @@ To remove strata later, run `strata uninstall`: it deletes the binary, its confi
 
 ## Try it without touching your dotfiles
 
-[**strata-dots**](https://github.com/D1srupt3d/strata-dots) is a small template repo with one example of each feature — layers, a role layer, variables, permissions and a hook. Its `try.sh` applies it to a throwaway home folder:
+[**strata-dots**](https://github.com/D1srupt3d/strata-dots) is a small template repo with one example of each feature - layers, a role layer, variables, permissions and a hook. Its `try.sh` applies it to a throwaway home folder:
 
 ```sh
 git clone https://github.com/D1srupt3d/strata-dots.git && cd strata-dots
@@ -71,7 +71,7 @@ Commit and push with git as usual. Add more files with `strata add`, and a `dots
 strata init git@github.com:you/dotfiles.git
 ```
 
-This clones to `~/dotfiles`, asks which role layers this machine gets (e.g. `work`), writes `machine.toml`, and runs the first apply. Existing dotfiles that differ from the repo are never overwritten — see [First apply on a machine with existing dotfiles](#first-apply-on-a-machine-with-existing-dotfiles).
+This clones to `~/dotfiles`, asks which role layers this machine gets (e.g. `work`), writes `machine.toml`, and runs the first apply. Existing dotfiles that differ from the repo are never overwritten - see [First apply on a machine with existing dotfiles](#first-apply-on-a-machine-with-existing-dotfiles).
 
 ## How it works
 
@@ -102,9 +102,9 @@ base  →  OS layers (auto-detected)  →  role layers (in machine.toml order)
 
 A Mac gets `base → mac → <roles>`; an Arch box gets `base → linux → arch → <roles>`.
 
-When two layers contain the same path, the later layer's file **wins whole** — no line merging. A work machine with both `base/.gitconfig` and `work/.gitconfig` gets exactly `work/.gitconfig`. When only a *value* differs between machines (an email, a font), don't copy the file into a layer: use a [variable](#one-line-differs-per-machine).
+When two layers contain the same path, the later layer's file **wins whole** - no line merging. A work machine with both `base/.gitconfig` and `work/.gitconfig` gets exactly `work/.gitconfig`. When only a *value* differs between machines (an email, a font), don't copy the file into a layer: use a [variable](#one-line-differs-per-machine).
 
-OS layer folders are optional — add `arch/` the day you get an Arch box. Role layers are not: a typo like `wrok` in `machine.toml` is an error, because silently skipping it would make apply delete every file `work/` provides.
+OS layer folders are optional - add `arch/` the day you get an Arch box. Role layers are not: a typo like `wrok` in `machine.toml` is an error, because silently skipping it would make apply delete every file `work/` provides.
 
 ### Each machine has one small config file
 
@@ -127,16 +127,16 @@ strata compares three versions of every file: what the repo builds, what's in `$
 | `clean` | Home matches the repo | Nothing |
 | `create` | Not in home yet | Writes it |
 | `update` | Repo changed; home copy untouched | Writes it |
-| `drifted` | You edited the home copy; repo unchanged | **Refuses** — keep it with `add`, or `--force` |
-| `conflict` | Both the repo and your home copy changed | **Refuses** — inspect with `diff`, then `add` or `--force` |
-| `unmanaged` | Exists, but strata never wrote it (typical on first apply) | **Refuses** — adopt with `add`, or `--force` |
+| `drifted` | You edited the home copy; repo unchanged | **Refuses** - keep it with `add`, or `--force` |
+| `conflict` | Both the repo and your home copy changed | **Refuses** - inspect with `diff`, then `add` or `--force` |
+| `unmanaged` | Exists, but strata never wrote it (typical on first apply) | **Refuses** - adopt with `add`, or `--force` |
 | `removed` | strata wrote it, but no layer provides it anymore | Deletes it (refuses if you edited it since) |
 | `chmod` | Content matches, but the mode doesn't match a `[permissions]` rule or the repo's exec bit | Fixes the mode only (never on Windows) |
 
 What strata guarantees:
 
 - **All-or-nothing.** If any file would be refused, apply writes nothing.
-- **Crash-safe writes.** Files go to a temp file, get flushed to disk, then renamed into place — a power cut can't leave half a `.zshrc`.
+- **Crash-safe writes.** Files go to a temp file, get flushed to disk, then renamed into place - a power cut can't leave half a `.zshrc`.
 - **Hooks run last**, only for files that changed, and a failed hook is retried on the next apply.
 - **Config errors stop everything.** An undefined `{{var}}`, an unknown key, or a bad pattern aborts before anything is written.
 
@@ -202,7 +202,7 @@ Commit and push on one machine, then on the others:
 strata sync                # git pull --ff-only, then apply
 ```
 
-strata doesn't wrap git beyond `sync` — use git however you like.
+strata doesn't wrap git beyond `sync` - use git however you like.
 
 ### First apply on a machine with existing dotfiles
 
@@ -234,30 +234,30 @@ Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 | `strata diff` | Diff what's in `$HOME` against what apply would write |
 | `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes) |
 | `strata edit <file>` | Open the winning layer's source in your editor, show the diff, offer to apply |
-| `strata add <file>` | Copy a file from `$HOME` into the repo — adopt a new file, or keep local edits (`--layer` to choose where) |
+| `strata add <file>` | Copy a file from `$HOME` into the repo - adopt a new file, or keep local edits (`--layer` to choose where) |
 | `strata rm <file>` | Delete a file from its winning layer, then apply |
 | `strata sync` | `git pull --ff-only` in the repo, then apply |
 | `strata init` | Set up this machine: clone or use a repo, choose role layers, first apply |
 | `strata upgrade` | Replace strata with the latest signed release (`--check` to only look) |
-| `strata uninstall` | Remove strata itself — not your dotfiles (`-n` to preview) |
+| `strata uninstall` | Remove strata itself - not your dotfiles (`-n` to preview) |
 
 Every command has full help with examples: `strata <command> --help`.
 
 <details>
-<summary><code>apply</code> — dry runs, partial failures, hooks, symlinks</summary>
+<summary><code>apply</code> - dry runs, partial failures, hooks, symlinks</summary>
 
-- `--dry-run` / `-n` lists what apply would do file by file — `would write`, `would chmod`, `would remove`, `would hook`, or `blocked` with the reason — and writes nothing.
+- `--dry-run` / `-n` lists what apply would do file by file - `would write`, `would chmod`, `would remove`, `would hook`, or `blocked` with the reason - and writes nothing.
 - If a write fails for an I/O reason partway (full disk, unwritable folder), the files already written stay recorded and their hooks queued, so the next apply picks up where it stopped.
-- Hooks run in `$HOME` with no time limit (a first `brew bundle` can take an hour). A failed or interrupted hook stays pending — `status` shows it — and the next apply retries it.
+- Hooks run in `$HOME` with no time limit (a first `brew bundle` can take an hour). A failed or interrupted hook stays pending - `status` shows it - and the next apply retries it.
 - A `$HOME` dotfile that's a **symlink** is never silently replaced: apply refuses it like a drifted file, and `--force` swaps in a regular file.
 - Running apply when everything is clean prints `nothing to do`; it's always safe to re-run.
 
 </details>
 
 <details>
-<summary><code>add</code> — choosing the layer</summary>
+<summary><code>add</code> - choosing the layer</summary>
 
-- Without `--layer`, the file goes to the layer that currently wins for it, or `base` for a new file. If the repo can't be planned right now (say, an undefined `{{var}}`), add refuses rather than guess `base` — which could push a work-only file to every machine.
+- Without `--layer`, the file goes to the layer that currently wins for it, or `base` for a new file. If the repo can't be planned right now (say, an undefined `{{var}}`), add refuses rather than guess `base` - which could push a work-only file to every machine.
 - `--layer` must be a folder in the repo or one of this machine's layers, so a typo is an error, not a new layer. If that layer isn't the one this machine gets the file from, the copy is saved but `$HOME` is left alone, and add tells you which layer wins.
 - Adding a file on the `substitute` list captures the *expanded* values; add warns you to restore the `{{tokens}}` by hand.
 - Paths can be `.zshrc`, `~/.zshrc`, or absolute; files outside your home folder are rejected.
@@ -265,14 +265,14 @@ Every command has full help with examples: `strata <command> --help`.
 </details>
 
 <details>
-<summary><code>rm</code> — what happens to the <code>$HOME</code> copy</summary>
+<summary><code>rm</code> - what happens to the <code>$HOME</code> copy</summary>
 
 If no other layer provides the file, apply deletes it from `$HOME` too. If an earlier layer still provides it (removing a `work/` override, say), that layer wins again and the `$HOME` copy is rewritten. If apply would refuse right now, `rm` refuses *before* deleting anything. Deleting a layer file by hand, or with `git rm` then `sync` elsewhere, works the same way.
 
 </details>
 
 <details>
-<summary><code>upgrade</code> — what gets verified</summary>
+<summary><code>upgrade</code> - what gets verified</summary>
 
 Nothing is replaced until every check passes: the release is newer (never a downgrade), `checksums.txt` has a valid signature from the strata release key, the signed checksums list this platform's archive, the archive's SHA-256 matches, and the new binary runs and reports that version. If anything fails, your strata is left exactly as it was.
 
@@ -287,7 +287,7 @@ Only release builds upgrade themselves. Homebrew installs use `brew upgrade stra
 Lives at the repo root. Every section is optional, and a repo without one is valid: files are copied as-is with default permissions.
 
 ```toml
-# Only these files get {{var}} replaced — everything else is copied
+# Only these files get {{var}} replaced - everything else is copied
 # byte-for-byte, so shell ${VARS} and other tools' {{ }} are safe.
 # (Top-level keys must come before any [section].)
 substitute = [".gitconfig", ".Brewfile"]
@@ -313,7 +313,7 @@ name  = "Your Name"
 
 Details worth knowing:
 
-- **Variables** look like `{{email}}` (or `{{ email }}`). An undefined variable fails the whole apply — strata never writes a half-substituted file.
+- **Variables** look like `{{email}}` (or `{{ email }}`). An undefined variable fails the whole apply - strata never writes a half-substituted file.
 - **Patterns** use `**` to cross folders. Two equally long `[permissions]` patterns that disagree are an error, never a coin flip. Folders strata creates are 700 for a private file, else 755; existing folders are never changed. (git only stores the exec bit, which is why `.ssh` needs a rule.)
 - **Always ignored**, with no config: `**/.DS_Store`, `**/._*`, `**/.Spotlight-V100`, `**/Thumbs.db`, `**/desktop.ini`.
 - **Typos are errors.** An unknown key (`[hook]` for `[hooks]`) or a malformed pattern fails loudly instead of silently doing nothing.
@@ -331,8 +331,8 @@ Keys: `←` `→` or `1`–`3` switch tabs · `↑` `↓` move · `enter` detail
 ## Security note
 
 - **Releases are signed.** CI signs `checksums.txt` with a dedicated SSH key that only `v*` tag runs can use, and `strata upgrade` and `get.sh` verify it against the key built into strata (fingerprint `SHA256:nMQXiQxd18neATjd15cvS8DQ5ihMQXbrgBa6xLKedNY`). Every release also has GitHub build provenance: `gh attestation verify <file> --repo D1srupt3d/strata`.
-- **Hooks run as shell commands,** like git hooks or a Makefile. Only use dotfiles repos you trust — any dotfiles repo can run code anyway, since it controls your `.zshrc`.
-- strata reads and writes only `$HOME`, your repo, and its own config and state files — plus `/etc/os-release` to detect your Linux distro, and its own binary when you run `upgrade`.
+- **Hooks run as shell commands,** like git hooks or a Makefile. Only use dotfiles repos you trust - any dotfiles repo can run code anyway, since it controls your `.zshrc`.
+- strata reads and writes only `$HOME`, your repo, and its own config and state files - plus `/etc/os-release` to detect your Linux distro, and its own binary when you run `upgrade`.
 
 ## What strata doesn't do
 

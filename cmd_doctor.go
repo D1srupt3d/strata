@@ -30,7 +30,7 @@ It checks:
   install    version, whether 'strata' on your PATH is this binary, git
 
 A check that depends on something broken is shown as skip, naming what it
-needed. Doctor only reads — it never changes a file. It checks the setup,
+needed. Doctor only reads - it never changes a file. It checks the setup,
 not individual files: for drifted or conflicting files, use 'strata status'.
 
 Exit status: 1 when anything is an error; warnings alone exit 0.`,

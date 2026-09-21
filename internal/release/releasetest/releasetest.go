@@ -2,7 +2,7 @@
 // signing key, a signer that produces the same armored signatures as
 // `ssh-keygen -Y sign`, release-shaped archives, and an httptest server
 // that answers like GitHub's releases/latest API. Test-only, like
-// net/http/httptest — production code never imports it.
+// net/http/httptest - production code never imports it.
 package releasetest
 
 import (
@@ -31,7 +31,7 @@ import (
 type Signer struct {
 	priv    ed25519.PrivateKey
 	pubBlob []byte
-	// AuthorizedKey is the public key as one authorized_keys line — what a
+	// AuthorizedKey is the public key as one authorized_keys line - what a
 	// trusted-key list holds.
 	AuthorizedKey string
 }
@@ -73,7 +73,7 @@ func appendString(dst, s []byte) []byte {
 }
 
 // Archive packs body as the release binary for goos, the way GoReleaser
-// does: strata (or strata.exe) at the root next to a README, tar.gz — or
+// does: strata (or strata.exe) at the root next to a README, tar.gz - or
 // zip on Windows. It returns the archive and its extension.
 func Archive(t testing.TB, goos string, body []byte) (data []byte, ext string) {
 	t.Helper()

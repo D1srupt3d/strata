@@ -13,7 +13,7 @@ import (
 
 // Shared scaffolding for the CLI tests. Every test runs in its own
 // t.TempDir() sandbox wired up through the STRATA_* env vars, so nothing
-// ever touches the real $HOME. Helpers fail the test on any setup error —
+// ever touches the real $HOME. Helpers fail the test on any setup error -
 // a fixture that silently didn't get written makes failures unreadable.
 
 func writeFile(t *testing.T, path, content string) {
@@ -90,8 +90,8 @@ func runIn(t *testing.T, stdin string, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// isolateGit makes git inside tests ignore the developer's own config — no
-// commit signing (which would prompt a password manager), no global hooks —
+// isolateGit makes git inside tests ignore the developer's own config - no
+// commit signing (which would prompt a password manager), no global hooks -
 // and gives commits a fixed identity.
 func isolateGit(t *testing.T) {
 	t.Helper()

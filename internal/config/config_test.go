@@ -48,7 +48,7 @@ func TestUnknownMachineConfigKeyIsAnError(t *testing.T) {
 
 // A machine.toml without repo, or with a relative one, made layers resolve
 // against whatever folder strata ran from: status said clean inside the repo
-// and "removed" everywhere else — and apply from the wrong folder deleted.
+// and "removed" everywhere else - and apply from the wrong folder deleted.
 func TestMachineConfigRepoMustBeAFullPath(t *testing.T) {
 	for name, content := range map[string]string{
 		"missing":  "layers = []\n",
@@ -107,7 +107,7 @@ email = "work@example.com"
 }
 
 // Where each var's value came from is decided once, here, alongside the
-// value itself — so the TUI (and later, layer-scoped vars) can't disagree
+// value itself - so the TUI (and later, layer-scoped vars) can't disagree
 // with what apply actually substitutes.
 func TestMergeRecordsVarProvenance(t *testing.T) {
 	rc := RepoConfig{Vars: map[string]string{"email": "p@example.com", "name": "Luke"}}

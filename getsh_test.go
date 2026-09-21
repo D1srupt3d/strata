@@ -102,7 +102,7 @@ func TestGetShInstallsAVerifiedRelease(t *testing.T) {
 		t.Errorf(".zprofile doesn't put %s on PATH:\n%s", binDir, prof)
 	}
 	if exists(filepath.Join(home, ".zshrc")) {
-		t.Error("get.sh created .zshrc — a file strata usually manages")
+		t.Error("get.sh created .zshrc - a file strata usually manages")
 	}
 }
 

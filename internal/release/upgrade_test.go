@@ -133,7 +133,7 @@ func TestUpgradeForceReinstallsSameVersion(t *testing.T) {
 	}
 }
 
-// A "latest" older than what's installed means a rollback — a yanked
+// A "latest" older than what's installed means a rollback - a yanked
 // release, or someone re-serving an old signed release. Never install it,
 // --force or not.
 func TestUpgradeRefusesDowngradeEvenWithForce(t *testing.T) {

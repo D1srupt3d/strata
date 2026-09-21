@@ -30,7 +30,7 @@ per-machine state) and runs the first apply.
 With a git URL, clones the repo first (default destination ~/dotfiles).
 A path to an existing local folder is used in place, like --repo; add
 --dir to clone it instead.
-The first apply never overwrites existing files it didn't write — it
+The first apply never overwrites existing files it didn't write - it
 stops and lists them so you can 'strata add' the keepers and --force the
 rest.
 
@@ -98,7 +98,7 @@ one.`,
 			// layers, don't ask", which an empty-value check can't tell apart
 			// from omitting the flag.
 			if !cmd.Flags().Changed("layers") {
-				fmt.Fprint(cmd.OutOrStdout(), "role layers (comma-separated, e.g. work — empty for none): ")
+				fmt.Fprint(cmd.OutOrStdout(), "role layers (comma-separated, e.g. work - empty for none): ")
 				line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
 				roles = splitCSV(line)
 			}
@@ -137,7 +137,7 @@ one.`,
 				fmt.Fprintf(out, "kept %d [vars] override(s) from the previous machine.toml\n", len(keep))
 			}
 			if !isGitRepo(abs) {
-				fmt.Fprintf(out, "warning: %s is not a git repository — apply works, but 'strata sync' (git pull) won't until it's a git clone\n", abs)
+				fmt.Fprintf(out, "warning: %s is not a git repository - apply works, but 'strata sync' (git pull) won't until it's a git clone\n", abs)
 			}
 			var onDefault []string
 			for n := range rc.Vars {
@@ -147,7 +147,7 @@ one.`,
 			}
 			if len(onDefault) > 0 {
 				sort.Strings(onDefault)
-				fmt.Fprintf(out, "note: these vars use their dots.toml defaults on this machine — override any of them under [vars] in %s:\n", p.Machine)
+				fmt.Fprintf(out, "note: these vars use their dots.toml defaults on this machine - override any of them under [vars] in %s:\n", p.Machine)
 				for _, n := range onDefault {
 					fmt.Fprintf(out, "  %s = %q\n", n, rc.Vars[n])
 				}
@@ -170,7 +170,7 @@ one.`,
 // replace, so re-running init keeps this machine's overrides. Only [vars]
 // carries over: repo and layers are what init replaces, and a stale or
 // invalid key is exactly what re-running init repairs. A file that can't be
-// parsed at all is refused rather than overwritten — it may hold the only
+// parsed at all is refused rather than overwritten - it may hold the only
 // copy of those overrides.
 func existingVars(path string) (map[string]string, error) {
 	var old struct {
@@ -180,12 +180,12 @@ func existingVars(path string) (map[string]string, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("%s exists but can't be read (%w) — fix or remove it, then rerun init", path, err)
+		return nil, fmt.Errorf("%s exists but can't be read (%w) - fix or remove it, then rerun init", path, err)
 	}
 	return old.Vars, nil
 }
 
-// isGitRepo reports whether dir is inside a git work tree — where
+// isGitRepo reports whether dir is inside a git work tree - where
 // 'strata sync' can git pull.
 func isGitRepo(dir string) bool {
 	return exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree").Run() == nil

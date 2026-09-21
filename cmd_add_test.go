@@ -141,7 +141,7 @@ func TestAddIntoAShadowedLayerKeepsTheHomeEdit(t *testing.T) {
 }
 
 // --layer names the target explicitly, so add needs no plan and must keep
-// working even while an unrelated file breaks planning — it's the escape
+// working even while an unrelated file breaks planning - it's the escape
 // hatch the refusal above points users to.
 func TestAddWithExplicitLayerWorksWhenPlanFails(t *testing.T) {
 	repo := addFixture(t)

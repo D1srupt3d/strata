@@ -13,8 +13,8 @@ import (
 type Version struct{ Year, Month, Patch int }
 
 // ParseVersion reads a release version, with or without a tag's leading "v".
-// Anything else — a source build's git-describe string such as
-// 2026.9.0-3-gabc123, a -dev suffix — is not a release, and is an error.
+// Anything else - a source build's git-describe string such as
+// 2026.9.0-3-gabc123, a -dev suffix - is not a release, and is an error.
 func ParseVersion(s string) (Version, error) {
 	parts := strings.Split(strings.TrimPrefix(s, "v"), ".")
 	if len(parts) != 3 {
@@ -34,7 +34,7 @@ func ParseVersion(s string) (Version, error) {
 	return Version{n[0], n[1], n[2]}, nil
 }
 
-// Less compares field by field, numerically — as strings, "2026.10.0" would
+// Less compares field by field, numerically - as strings, "2026.10.0" would
 // sort before "2026.9.9".
 func (v Version) Less(o Version) bool {
 	if v.Year != o.Year {
