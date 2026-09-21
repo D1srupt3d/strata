@@ -60,7 +60,7 @@ func TestEqualLengthRulesThatAgreeAreFine(t *testing.T) {
 	}
 }
 
-// Only the 0–777 permission bits mean anything to strata: Go drops setuid,
+// Only the 0-777 permission bits mean anything to strata: Go drops setuid,
 // setgid and sticky from a plain mode, so "4755" was written as 755 and then
 // reported as needing a chmod forever.
 func TestModeAboveOctal777IsAnError(t *testing.T) {

@@ -301,7 +301,7 @@ ignore = [".claude/settings.json", "**/*.log"]
 email = "personal@example.com"
 name  = "Your Name"
 
-# glob → octal mode (000–777). The longest matching pattern wins.
+# glob → octal mode (000-777). The longest matching pattern wins.
 # Without a rule: 644, or 755 if the repo copy is executable.
 [permissions]
 ".ssh/**" = "600"
@@ -326,7 +326,7 @@ Details worth knowing:
 
 Bare `strata` opens a full-screen viewer that never changes anything. Its three tabs show which layer each file comes from here and on mac/linux/windows, each file's status, and where every variable, hook and permission comes from. Press `enter` on a file for its full story and a diff.
 
-Keys: `←` `→` or `1`–`3` switch tabs · `↑` `↓` move · `enter` details · `d` full diff · `esc` close · `q` quit.
+Keys: `←` `→` or `1`-`3` switch tabs · `↑` `↓` move · `enter` details · `d` full diff · `esc` close · `q` quit.
 
 ## Security note
 
