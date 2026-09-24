@@ -1,22 +1,28 @@
-// Package config loads the repo-level dots.toml and per-machine machine.toml.
+// Package config loads the repo-level dots.toml and per-machine machine.toml,
+// and merges them into the one view the engine consumes (see Merge).
 package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"strata/internal/layers"
 )
 
 type RepoConfig struct {
-	Substitute  []string          `toml:"substitute"`
-	Ignore      []string          `toml:"ignore"`
-	Vars        map[string]string `toml:"vars"`
-	Permissions map[string]string `toml:"permissions"`
-	Hooks       map[string]string `toml:"hooks"`
+	Substitute  []string                     `toml:"substitute"`
+	Ignore      []string                     `toml:"ignore"`
+	Vars        map[string]string            `toml:"vars"`
+	LayerVars   map[string]map[string]string `toml:"layer_vars"` // layer → its vars
+	Permissions map[string]string            `toml:"permissions"`
+	Hooks       map[string]string            `toml:"hooks"`
 }
 
 type MachineConfig struct {
@@ -29,8 +35,9 @@ type MachineConfig struct {
 type Config struct {
 	RepoDir     string
 	RoleLayers  []string
-	Vars        map[string]string // repo defaults overridden by machine values
-	VarFrom     map[string]string // var name → file its value came from
+	Vars        map[string]string // [vars], then this machine's [layer_vars], then machine.toml
+	VarFrom     map[string]string // var name → where its value came from, e.g. "dots.toml [layer_vars.work]"
+	VarSections []string          // every [layer_vars.<layer>] name, sorted; engine.CheckLayers checks them
 	Substitute  []string
 	Ignore      []string // globs never managed, on top of layers.DefaultIgnore
 	Permissions map[string]string
@@ -102,13 +109,23 @@ func ExpandTilde(p string) string {
 	return p
 }
 
-// Merge layers machine vars over repo defaults, recording where each value
-// came from. Provenance is decided here, once, so every consumer (the TUI,
-// and any future var source) agrees with what apply substitutes.
-func Merge(rc RepoConfig, mc MachineConfig) Config {
+// Merge stacks vars the way layers stack files: dots.toml [vars], then each
+// of this machine's layers' [layer_vars.<layer>] in layer order, then
+// machine.toml [vars]; later wins. Where each value came from is decided
+// here, once, so every consumer (the TUI, doctor, init's note) agrees with
+// what apply substitutes. goos/osRelease pick the layers (layers.Order) and
+// are parameters so tests can simulate any platform; it also means Vars are
+// this platform's values. A section for a layer this machine doesn't use is
+// skipped here, and engine.CheckLayers rejects names that match no layer.
+func Merge(rc RepoConfig, mc MachineConfig, goos, osRelease string) Config {
 	vars, from := map[string]string{}, map[string]string{}
 	for k, v := range rc.Vars {
 		vars[k], from[k] = v, "dots.toml"
+	}
+	for _, layer := range layers.Order(mc.Layers, goos, osRelease) {
+		for k, v := range rc.LayerVars[layer] {
+			vars[k], from[k] = v, "dots.toml [layer_vars."+layer+"]"
+		}
 	}
 	for k, v := range mc.Vars {
 		vars[k], from[k] = v, "machine.toml"
@@ -118,6 +135,7 @@ func Merge(rc RepoConfig, mc MachineConfig) Config {
 		RoleLayers:  mc.Layers,
 		Vars:        vars,
 		VarFrom:     from,
+		VarSections: slices.Sorted(maps.Keys(rc.LayerVars)),
 		Substitute:  rc.Substitute,
 		Ignore:      rc.Ignore,
 		Permissions: rc.Permissions,

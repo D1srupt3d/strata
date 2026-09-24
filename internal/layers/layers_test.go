@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -128,5 +129,96 @@ func TestResolveReportsBadIgnorePattern(t *testing.T) {
 
 	if _, err := Resolve(repo, []string{"base"}, []string{"["}); err == nil {
 		t.Error("malformed ignore pattern should fail loud, not silently match nothing")
+	}
+}
+
+// mkDirs creates each folder under repo.
+func mkDirs(t *testing.T, repo string, names ...string) {
+	t.Helper()
+	for _, n := range names {
+		if err := os.MkdirAll(filepath.Join(repo, n), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// macOS and Windows file systems ignore case, so os.Stat("Work") found
+// work/ there and the name passed, while Linux rejected the same
+// machine.toml. A layer name is also a lookup key ([layer_vars.work]), so
+// the check must match the folder's exact spelling, on every OS.
+func TestCheckRolesIsCaseExact(t *testing.T) {
+	repo := t.TempDir()
+	mkDirs(t, repo, "base", "work")
+	if err := CheckRoles(repo, []string{"work"}); err != nil {
+		t.Fatalf("exact spelling: %v", err)
+	}
+	err := CheckRoles(repo, []string{"Work"})
+	if err == nil {
+		t.Fatal(`CheckRoles accepted "Work" for the folder work/`)
+	}
+	if !strings.Contains(err.Error(), `"Work" is spelled "work"`) {
+		t.Errorf("err = %v, want it to name the folder's real spelling", err)
+	}
+}
+
+// A [layer_vars] section must name a layer this repo can have: a folder,
+// spelled exactly, or a built-in OS layer. A typo'd section would never
+// apply, and machines would quietly get the defaults.
+func TestCheckVarSections(t *testing.T) {
+	repo := t.TempDir()
+	mkDirs(t, repo, "base", "work")
+	for _, names := range [][]string{
+		nil,
+		{"work"},
+		{"mac", "linux", "windows"}, // built-in OS layers need no folder
+	} {
+		if err := CheckVarSections(repo, names); err != nil {
+			t.Errorf("CheckVarSections(%q) = %v, want nil", names, err)
+		}
+	}
+	for _, tt := range []struct {
+		names []string
+		want  []string // substrings the error must contain
+	}{
+		{[]string{"base"}, []string{"[layer_vars.base]", "[vars]"}},
+		{[]string{"wrok"}, []string{"[layer_vars.wrok]", "typo?"}},
+		{[]string{"arch"}, []string{"[layer_vars.arch]"}}, // a distro needs its folder
+		{[]string{"Work"}, []string{"[layer_vars.Work]", `"Work" is spelled "work"`}},
+		{[]string{"a/b"}, []string{"[layer_vars.a/b]", "not a layer name"}},
+		{[]string{"Work", "wrok"}, []string{"[layer_vars.Work]", "[layer_vars.wrok]"}}, // every one listed
+	} {
+		err := CheckVarSections(repo, tt.names)
+		if err == nil {
+			t.Errorf("CheckVarSections(%q) = nil, want an error", tt.names)
+			continue
+		}
+		for _, w := range tt.want {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("CheckVarSections(%q) = %v, want it to mention %s", tt.names, err, w)
+			}
+		}
+	}
+}
+
+// Like CheckRoles: a repo folder that doesn't exist at all reads as an empty
+// repo (README "Order matters"), so there is nothing to check.
+func TestCheckVarSectionsMissingRepo(t *testing.T) {
+	if err := CheckVarSections(filepath.Join(t.TempDir(), "gone"), []string{"wrok"}); err != nil {
+		t.Errorf("missing repo: %v, want nil", err)
+	}
+}
+
+// The exemption must track OSLayers. A new fixed OS layer that isn't exempt
+// would need a folder for its vars, and an exempt name OSLayers never
+// returns would let a typo through.
+func TestBuiltinOSMatchesOSLayers(t *testing.T) {
+	got := map[string]bool{}
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		for _, n := range OSLayers(goos, "") {
+			got[n] = true
+		}
+	}
+	if !reflect.DeepEqual(got, builtinOS) {
+		t.Errorf("OSLayers returns %v, builtinOS is %v", got, builtinOS)
 	}
 }

@@ -132,7 +132,7 @@ func canonicalColumns(repoDir string, roles []string) ([]string, map[string]stri
 // Build assembles the Snapshot from the same packages the CLI commands use.
 // goos/osRelease are parameters so tests can simulate any platform.
 func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.State, goos, osRelease, hostname string) (*Snapshot, error) {
-	cfg := config.Merge(rc, mc)
+	cfg := config.Merge(rc, mc, goos, osRelease)
 	if err := engine.CheckLayers(cfg); err != nil {
 		return nil, err // before any walk: a bad role layer must not read outside the repo
 	}

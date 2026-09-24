@@ -37,7 +37,7 @@ func checkConfig(r *report, in Inputs) loaded {
 		r.add(Skip, "repo, git, dots.toml, layers", "need a readable machine.toml", "")
 		return l
 	}
-	l.machine, l.cfg = true, config.Merge(config.RepoConfig{}, mc)
+	l.machine, l.cfg = true, config.Merge(config.RepoConfig{}, mc, in.GOOS, in.OSRelease)
 	r.add(OK, "machine.toml", in.MachinePath, "")
 
 	info, err := os.Stat(mc.Repo)
@@ -87,7 +87,7 @@ func checkConfig(r *report, in Inputs) loaded {
 	if err != nil {
 		r.add(Error, "dots.toml", err.Error(), "fix the line or key the error names")
 	} else {
-		l.dots, l.cfg = true, config.Merge(rc, mc)
+		l.dots, l.cfg = true, config.Merge(rc, mc, in.GOOS, in.OSRelease)
 		detail := filepath.Join(mc.Repo, "dots.toml")
 		if _, err := os.Stat(detail); errors.Is(err, fs.ErrNotExist) {
 			detail = "none, using defaults"

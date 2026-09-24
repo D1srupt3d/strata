@@ -87,7 +87,7 @@ func loadContext() (*appContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &appContext{Paths: p, Cfg: config.Merge(rc, mc), State: st}, nil
+	return &appContext{Paths: p, Cfg: config.Merge(rc, mc, runtime.GOOS, layers.ReadOSRelease()), State: st}, nil
 }
 
 // order is this machine's layer stack: base, OS layers, then role layers.

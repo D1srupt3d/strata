@@ -75,17 +75,111 @@ func CheckRoles(repoDir string, roles []string) error {
 	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
 		return nil
 	}
-	var missing []string
 	for _, r := range roles {
 		if err := ValidName(r); err != nil {
 			return err
 		}
-		if info, err := os.Stat(filepath.Join(repoDir, r)); err != nil || !info.IsDir() {
-			missing = append(missing, fmt.Sprintf("%q", r))
-		}
+	}
+	missing, hints, err := missingFolders(repoDir, roles)
+	if err != nil {
+		return err
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("role layer %s has no folder in %s - typo?", strings.Join(missing, ", "), repoDir)
+		quoted := make([]string, len(missing))
+		for i, m := range missing {
+			quoted[i] = fmt.Sprintf("%q", m)
+		}
+		return fmt.Errorf("role layer %s has no folder in %s - typo?%s", strings.Join(quoted, ", "), repoDir, caseHint(hints))
+	}
+	return nil
+}
+
+// missingFolders returns the names that aren't a folder in repoDir spelled
+// exactly that way, plus a hint for each that differs from an entry only in
+// case. It matches the repo's listing instead of asking os.Stat about
+// repoDir/name: macOS and Windows file systems ignore case, so Stat("Work")
+// finds work/ there. A layer name is also a lookup key ([layer_vars.work])
+// where "Work" is not "work", so the listing is the only answer every OS
+// agrees on. A match must still be a folder to os.Stat, as CheckRoles has
+// always required.
+func missingFolders(repoDir string, names []string) (missing, hints []string, err error) {
+	if len(names) == 0 {
+		return nil, nil, nil
+	}
+	entries, err := os.ReadDir(repoDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading the repo folder: %w", err)
+	}
+	for _, name := range names {
+		found, near := false, ""
+		for _, e := range entries {
+			if e.Name() == name {
+				info, statErr := os.Stat(filepath.Join(repoDir, name))
+				found = statErr == nil && info.IsDir()
+			} else if strings.EqualFold(e.Name(), name) {
+				near = e.Name()
+			}
+		}
+		if found {
+			continue
+		}
+		missing = append(missing, name)
+		if near != "" {
+			hints = append(hints, fmt.Sprintf("%q is spelled %q", name, near))
+		}
+	}
+	return missing, hints, nil
+}
+
+// caseHint turns missingFolders' hints into a suffix for an error message.
+func caseHint(hints []string) string {
+	if len(hints) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(hints, ", ") + ": layer names are case-sensitive)"
+}
+
+// builtinOS are the OS layer names OSLayers returns that are fixed rather
+// than read from /etc/os-release. A [layer_vars] section may name one even
+// when its folder doesn't exist: git can't store an empty folder, and a
+// placeholder like .gitkeep inside a layer would be deployed to ~/.gitkeep.
+// Distro names are open-ended, so without their folder they can't be told
+// apart from typos.
+var builtinOS = map[string]bool{"mac": true, "linux": true, "windows": true}
+
+// CheckVarSections verifies the names of dots.toml's [layer_vars.<name>]
+// sections. Each must be a built-in OS layer or a folder in the repo,
+// spelled exactly: a typo'd section would never apply, and machines would
+// quietly get the defaults. base is refused, because its values are just
+// [vars]. Like CheckRoles, a repo folder that doesn't exist at all has
+// nothing to check.
+func CheckVarSections(repoDir string, names []string) error {
+	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
+		return nil
+	}
+	var check []string
+	for _, n := range names {
+		switch {
+		case n == "base":
+			return fmt.Errorf("[layer_vars.base]: base's values are the defaults - put them in [vars]")
+		case builtinOS[n]:
+			continue
+		}
+		if err := ValidName(n); err != nil {
+			return fmt.Errorf("[layer_vars.%s]: %w", n, err)
+		}
+		check = append(check, n)
+	}
+	missing, hints, err := missingFolders(repoDir, check)
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		secs := make([]string, len(missing))
+		for i, m := range missing {
+			secs[i] = "[layer_vars." + m + "]"
+		}
+		return fmt.Errorf("no layer folder in %s for %s - typo?%s", repoDir, strings.Join(secs, ", "), caseHint(hints))
 	}
 	return nil
 }
