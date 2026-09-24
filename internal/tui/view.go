@@ -295,6 +295,10 @@ func (m Model) filesView(bodyH int) string {
 func (m Model) varsView() string {
 	s := m.snap
 	nameW, valW, fromW := 16, 28, 14
+	for _, v := range s.Vars {
+		// padr truncates, and "dots.toml [layer_vars.work]" must read in full.
+		fromW = max(fromW, lipgloss.Width(v.From)+2)
+	}
 	head := " " + padr("VAR", nameW) + padr("VALUE HERE", valW) + padr("FROM", fromW) + "DEFAULT (dots.toml)"
 	out := []string{lipgloss.NewStyle().Foreground(cMuted).Render(head)}
 
