@@ -145,6 +145,15 @@ func TestSnapshotLayersAndVars(t *testing.T) {
 	}
 }
 
+// The TUI shows what apply would do, so it refuses the same bad section.
+func TestBuildRefusesTypoLayerVarsSection(t *testing.T) {
+	rc, mc, home := fixture(t)
+	rc.LayerVars = map[string]map[string]string{"wrok": {"email": "x"}}
+	if _, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "mbp-work"); err == nil {
+		t.Fatal("Build accepted [layer_vars.wrok]")
+	}
+}
+
 func key(k string) tea.KeyPressMsg {
 	switch k {
 	case "up", "down", "left", "right", "enter", "esc":

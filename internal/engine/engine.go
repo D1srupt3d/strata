@@ -57,12 +57,16 @@ func inList(s string, list []string) bool {
 	return false
 }
 
-// CheckLayers rejects role layers from machine.toml that aren't a folder in
-// the repo (see layers.CheckRoles). Plan runs it first; so does the TUI,
-// before it walks any layer.
+// CheckLayers rejects layer names that match no folder in the repo: role
+// layers from machine.toml (see layers.CheckRoles) and dots.toml's
+// [layer_vars.<layer>] sections (see layers.CheckVarSections). Plan runs it
+// first; so does the TUI, before it walks any layer.
 func CheckLayers(cfg config.Config) error {
 	if err := layers.CheckRoles(cfg.RepoDir, cfg.RoleLayers); err != nil {
 		return fmt.Errorf("machine.toml layers: %w (fix the name, or create the folder)", err)
+	}
+	if err := layers.CheckVarSections(cfg.RepoDir, cfg.VarSections); err != nil {
+		return fmt.Errorf("dots.toml: %w", err)
 	}
 	return nil
 }
