@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -38,8 +40,9 @@ Re-running init (say, after moving the repo) replaces repo and layers but
 keeps this machine's [vars] overrides. Comments in the old machine.toml
 are not kept.
 
-If your repo uses [vars], init lists the ones running on their dots.toml
-defaults; override any of them per machine under [vars] in machine.toml.
+If your repo uses vars, init lists the ones this machine takes from
+dots.toml ([vars] defaults, and [layer_vars] values for its layers) and
+where each came from; override any of them under [vars] in machine.toml.
 It also warns when the repo isn't a git clone, since 'strata sync' needs
 one.`,
 		Example: `  strata init git@github.com:you/dotfiles.git
@@ -92,6 +95,11 @@ one.`,
 			if err != nil {
 				return err
 			}
+			// A typo'd [layer_vars] section fails here, before the role
+			// prompt, like a typo'd role layer does below.
+			if err := layers.CheckVarSections(abs, slices.Sorted(maps.Keys(rc.LayerVars))); err != nil {
+				return fmt.Errorf("dots.toml: %w", err)
+			}
 
 			roles := splitCSV(layersFlag)
 			// Changed, not == "": the documented `--layers ""` means "no role
@@ -139,23 +147,25 @@ one.`,
 			if !isGitRepo(abs) {
 				fmt.Fprintf(out, "warning: %s is not a git repository - apply works, but 'strata sync' (git pull) won't until it's a git clone\n", abs)
 			}
-			var onDefault []string
-			for n := range rc.Vars {
-				if _, overridden := keep[n]; !overridden {
-					onDefault = append(onDefault, n)
-				}
-			}
-			if len(onDefault) > 0 {
-				sort.Strings(onDefault)
-				fmt.Fprintf(out, "note: these vars use their dots.toml defaults on this machine - override any of them under [vars] in %s:\n", p.Machine)
-				for _, n := range onDefault {
-					fmt.Fprintf(out, "  %s = %q\n", n, rc.Vars[n])
-				}
-			}
-
 			app, err := loadContext()
 			if err != nil {
 				return err
+			}
+			// Every var this machine takes from the repo (a [vars] default, or
+			// a [layer_vars] value for one of its layers) and where it came
+			// from, so picking a layer shows the values it brought along.
+			var fromRepo []string
+			for n, from := range app.Cfg.VarFrom {
+				if from != "machine.toml" {
+					fromRepo = append(fromRepo, n)
+				}
+			}
+			if len(fromRepo) > 0 {
+				sort.Strings(fromRepo)
+				fmt.Fprintf(out, "note: these vars use values from dots.toml on this machine - override any of them under [vars] in %s:\n", p.Machine)
+				for _, n := range fromRepo {
+					fmt.Fprintf(out, "  %s = %q  (%s)\n", n, app.Cfg.Vars[n], app.Cfg.VarFrom[n])
+				}
 			}
 			return runApply(app, cmd.OutOrStdout(), applyOpts{})
 		},

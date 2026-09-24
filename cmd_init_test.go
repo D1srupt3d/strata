@@ -208,3 +208,35 @@ func TestInitPromptsForLayersWhenFlagOmitted(t *testing.T) {
 		t.Errorf("$HOME .gitconfig = %q, want the work layer's", got)
 	}
 }
+
+// Picking a layer brings its [layer_vars] values along, and init says so:
+// the note names each value and the section it came from.
+func TestInitListsLayerVarsValues(t *testing.T) {
+	s := initRepo(t)
+	writeFile(t, s.repo("dots.toml"), "[vars]\npalette = \"everforest\"\n[layer_vars.work]\npalette = \"dracula\"\n")
+	out, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `palette = "dracula"`) || !strings.Contains(out, "(dots.toml [layer_vars.work])") {
+		t.Errorf("want the work value and its section in the note, got:\n%s", out)
+	}
+	if strings.Contains(out, `palette = "everforest"`) {
+		t.Errorf("init lists the default, but the work layer replaces it:\n%s", out)
+	}
+}
+
+// A typo'd [layer_vars] section is caught before machine.toml is written,
+// like a typo'd role layer.
+func TestInitRejectsTypoLayerVarsSection(t *testing.T) {
+	s := initRepo(t)
+	writeFile(t, s.repo("dots.toml"), "[layer_vars.wrok]\npalette = \"dracula\"\n")
+	before := readFile(t, s.Machine)
+	_, err := runIn(t, "", "init", "--repo", s.Repo, "--layers", "work")
+	if err == nil || !strings.Contains(err.Error(), "[layer_vars.wrok]") {
+		t.Fatalf("init: err = %v, want one naming [layer_vars.wrok]", err)
+	}
+	if got := readFile(t, s.Machine); got != before {
+		t.Errorf("machine.toml was rewritten despite the error:\n%s", got)
+	}
+}
