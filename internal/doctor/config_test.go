@@ -96,3 +96,22 @@ func TestEveryBadRoleLayerIsListed(t *testing.T) {
 	wantSev(t, got, "config", `layer "wrok"`, Error)
 	wantSev(t, got, "config", `layer "../x"`, Error)
 }
+
+// Apply stops at the first bad [layer_vars] section; doctor lists every one.
+// Unlike an unreadable dots.toml, a bad section doesn't stop the dots.toml
+// checks: the undefined var below is still reported.
+func TestEveryBadLayerVarsSectionIsListed(t *testing.T) {
+	e := newEnv(t, "work")
+	e.repoFile(t, "work/.gitconfig", "{{email}}\n")
+	e.repoFile(t, "dots.toml", "substitute = [\".gitconfig\"]\n"+
+		"[layer_vars.work]\nname = \"w\"\n"+
+		"[layer_vars.wrok]\nname = \"x\"\n"+
+		"[layer_vars.base]\nname = \"y\"\n")
+	got := Run(e.in)
+	wantSev(t, got, "config", "[layer_vars.work]", OK)
+	wantSev(t, got, "config", "[layer_vars.wrok]", Error)
+	if f := wantSev(t, got, "config", "[layer_vars.base]", Error); !strings.Contains(f.Fix, "[vars]") {
+		t.Errorf("base fix = %q, want it to point at [vars]", f.Fix)
+	}
+	wantSev(t, got, "dots.toml", `vars in ".gitconfig"`, Error)
+}

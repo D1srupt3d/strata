@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -77,5 +78,33 @@ func TestEndToEnd(t *testing.T) {
 	out, _ = run(t, "status")
 	if !strings.Contains(out, "clean") {
 		t.Fatalf("after add: %s", out)
+	}
+}
+
+// Vars stack like files: a machine with the work layer gets the work value,
+// and a machine.toml override on top is an ordinary update, not drift.
+func TestLayerVarsEndToEnd(t *testing.T) {
+	s := sandbox(t, "work")
+	writeFile(t, s.repo("dots.toml"), "substitute = [\".greet\"]\n[vars]\nname = \"default\"\n[layer_vars.work]\nname = \"work\"\n")
+	writeFile(t, s.repo("base/.greet"), "hi {{name}}\n")
+	writeFile(t, s.repo("work/.workrc"), "work\n") // a role layer needs its folder
+	if out, err := run(t, "apply"); err != nil {
+		t.Fatalf("apply: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".greet")); got != "hi work\n" {
+		t.Fatalf("$HOME .greet = %q, want the work layer's value", got)
+	}
+
+	writeFile(t, s.Machine, fmt.Sprintf("repo = %q\nlayers = [\"work\"]\n[vars]\nname = \"mine\"\n", filepath.ToSlash(s.Repo)))
+	out, _ := run(t, "status") // exits 1: something needs attention
+	// status prints "%-9s %s", so an update reads "update    .greet".
+	if !strings.Contains(out, "update    .greet") {
+		t.Fatalf("status after a machine.toml override, want .greet as update:\n%s", out)
+	}
+	if out, err := run(t, "apply"); err != nil {
+		t.Fatalf("apply: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".greet")); got != "hi mine\n" {
+		t.Errorf("$HOME .greet = %q, want the machine.toml override", got)
 	}
 }

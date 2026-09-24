@@ -104,7 +104,7 @@ A Mac gets `base → mac → <roles>`; an Arch box gets `base → linux → arch
 
 When two layers contain the same path, the later layer's file **wins whole** - no line merging. A work machine with both `base/.gitconfig` and `work/.gitconfig` gets exactly `work/.gitconfig`. When only a *value* differs between machines (an email, a font), don't copy the file into a layer: use a [variable](#one-line-differs-per-machine).
 
-OS layer folders are optional - add `arch/` the day you get an Arch box. Role layers are not: a typo like `wrok` in `machine.toml` is an error, because silently skipping it would make apply delete every file `work/` provides.
+OS layer folders are optional - add `arch/` the day you get an Arch box. Role layers are not: a typo like `wrok` in `machine.toml` is an error, because silently skipping it would make apply delete every file `work/` provides. Names are matched exactly, capitals included: `Work` is not `work/`, even on macOS and Windows, whose file systems ignore case.
 
 ### Each machine has one small config file
 
@@ -193,6 +193,16 @@ email = "personal@example.com"
 [vars]
 email = "you@work.example"
 ```
+
+When every machine with a layer needs the value (every work machine, not just this one), put it in dots.toml under that layer. Picking the layer at `strata init` then brings it along:
+
+```toml
+# dots.toml
+[layer_vars.work]
+email = "you@work.example"
+```
+
+Vars stack like files: `[vars]`, then `[layer_vars.<layer>]` for each of the machine's layers in order, then machine.toml's `[vars]`. The last one wins.
 
 ### Sync your other machines
 
@@ -296,10 +306,16 @@ substitute = [".gitconfig", ".Brewfile"]
 # already applied just stops managing it; the $HOME copy stays.
 ignore = [".claude/settings.json", "**/*.log"]
 
-# Default values; machine.toml [vars] overrides them per machine.
+# Default values for every machine.
 [vars]
 email = "personal@example.com"
 name  = "Your Name"
+
+# Values for machines with a layer. Vars stack like files: [vars], then
+# each of the machine's layers in order (base → OS → roles), then
+# machine.toml [vars]. The last one wins.
+[layer_vars.work]
+email = "you@work.example"
 
 # glob → octal mode (000-777). The longest matching pattern wins.
 # Without a rule: 644, or 755 if the repo copy is executable.
@@ -314,9 +330,10 @@ name  = "Your Name"
 Details worth knowing:
 
 - **Variables** look like `{{email}}` (or `{{ email }}`). An undefined variable fails the whole apply - strata never writes a half-substituted file.
+- **Layer vars** need a layer folder in the repo, spelled exactly, except `mac`, `linux` and `windows`, which need none (git can't store an empty folder). `[layer_vars.base]` is an error: base's values are just `[vars]`. strata versions from before layer vars reject the section as an unknown key, so upgrade every machine before pushing a dots.toml that uses it.
 - **Patterns** use `**` to cross folders. Two equally long `[permissions]` patterns that disagree are an error, never a coin flip. Folders strata creates are 700 for a private file, else 755; existing folders are never changed. (git only stores the exec bit, which is why `.ssh` needs a rule.)
 - **Always ignored**, with no config: `**/.DS_Store`, `**/._*`, `**/.Spotlight-V100`, `**/Thumbs.db`, `**/desktop.ini`.
-- **Typos are errors.** An unknown key (`[hook]` for `[hooks]`) or a malformed pattern fails loudly instead of silently doing nothing.
+- **Typos are errors.** An unknown key (`[hook]` for `[hooks]`), a `[layer_vars]` section naming no layer, or a malformed pattern fails loudly instead of silently doing nothing.
 
 ### State file
 

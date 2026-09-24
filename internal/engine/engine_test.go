@@ -179,6 +179,18 @@ func TestRoleLayerMustBeAFolderName(t *testing.T) {
 	}
 }
 
+// A [layer_vars] section naming no layer would silently never apply, and the
+// machine would quietly get the defaults. Plan refuses it before any var is
+// used.
+func TestTypoLayerVarsSectionIsAnError(t *testing.T) {
+	cfg, home := fixture(t)
+	cfg.VarSections = []string{"wrok"}
+	_, err := Plan(cfg, home, state.State{Files: map[string]string{}}, "darwin", "")
+	if err == nil || !strings.Contains(err.Error(), "[layer_vars.wrok]") || !strings.Contains(err.Error(), "dots.toml") {
+		t.Fatalf("Plan with [layer_vars.wrok]: err = %v, want one naming the section and dots.toml", err)
+	}
+}
+
 // The documented exception: a repo folder that doesn't exist at all (moved or
 // deleted) still reads as an empty repo, so every managed file is Removed -
 // README "Order matters". Only a missing layer inside a real repo is a typo.

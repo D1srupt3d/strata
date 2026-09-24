@@ -145,6 +145,45 @@ func TestSnapshotLayersAndVars(t *testing.T) {
 	}
 }
 
+// The TUI shows what apply would do, so it refuses the same bad section.
+func TestBuildRefusesTypoLayerVarsSection(t *testing.T) {
+	rc, mc, home := fixture(t)
+	rc.LayerVars = map[string]map[string]string{"wrok": {"email": "x"}}
+	if _, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "mbp-work"); err == nil {
+		t.Fatal("Build accepted [layer_vars.wrok]")
+	}
+}
+
+// A value from a layer's section shows that section as its source and the
+// [vars] default it replaced, and the label reads in full: the FROM column
+// used to be a fixed 14 characters and cut longer labels off.
+func TestVarsTabShowsLayerVarsSource(t *testing.T) {
+	rc, mc, home := fixture(t)
+	rc.Vars["palette"] = "everforest"
+	rc.LayerVars = map[string]map[string]string{"work": {"palette": "dracula"}}
+	s, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "mbp-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var palette VarRow
+	for _, v := range s.Vars {
+		if v.Name == "palette" {
+			palette = v
+		}
+	}
+	if palette.Value != "dracula" || palette.From != "dots.toml [layer_vars.work]" ||
+		!palette.Overridden || palette.Default != "everforest" {
+		t.Errorf("palette var: %+v", palette)
+	}
+
+	var m tea.Model = New(s)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
+	m, _ = m.Update(key("3")) // Vars tab
+	if v := m.View().Content; !strings.Contains(v, "dots.toml [layer_vars.work]") {
+		t.Errorf("vars tab cuts the source label short:\n%s", v)
+	}
+}
+
 func key(k string) tea.KeyPressMsg {
 	switch k {
 	case "up", "down", "left", "right", "enter", "esc":

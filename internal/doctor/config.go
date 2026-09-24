@@ -37,7 +37,7 @@ func checkConfig(r *report, in Inputs) loaded {
 		r.add(Skip, "repo, git, dots.toml, layers", "need a readable machine.toml", "")
 		return l
 	}
-	l.machine, l.cfg = true, config.Merge(config.RepoConfig{}, mc)
+	l.machine, l.cfg = true, config.Merge(config.RepoConfig{}, mc, in.GOOS, in.OSRelease)
 	r.add(OK, "machine.toml", in.MachinePath, "")
 
 	info, err := os.Stat(mc.Repo)
@@ -87,7 +87,7 @@ func checkConfig(r *report, in Inputs) loaded {
 	if err != nil {
 		r.add(Error, "dots.toml", err.Error(), "fix the line or key the error names")
 	} else {
-		l.dots, l.cfg = true, config.Merge(rc, mc)
+		l.dots, l.cfg = true, config.Merge(rc, mc, in.GOOS, in.OSRelease)
 		detail := filepath.Join(mc.Repo, "dots.toml")
 		if _, err := os.Stat(detail); errors.Is(err, fs.ErrNotExist) {
 			detail = "none, using defaults"
@@ -102,6 +102,22 @@ func checkConfig(r *report, in Inputs) loaded {
 		if err := layers.CheckRoles(mc.Repo, []string{role}); err != nil {
 			l.roles = false
 			r.add(Error, subject, err.Error(), "fix the name in machine.toml, or create the folder in the repo")
+			continue
+		}
+		r.add(OK, subject, "", "")
+	}
+
+	// [layer_vars] names, one at a time like the roles above, so every bad
+	// section is listed. A bad one leaves every loaded flag alone: unlike an
+	// unreadable dots.toml, it doesn't stop the dots.toml checks from running.
+	for _, name := range l.cfg.VarSections {
+		subject := fmt.Sprintf("[layer_vars.%s]", name)
+		if err := layers.CheckVarSections(mc.Repo, []string{name}); err != nil {
+			fix := "rename the section to match a layer folder in the repo (mac, linux and windows need none)"
+			if name == "base" {
+				fix = "move these vars to [vars]: base's values are the defaults"
+			}
+			r.add(Error, subject, err.Error(), fix)
 			continue
 		}
 		r.add(OK, subject, "", "")
