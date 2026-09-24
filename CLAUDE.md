@@ -82,8 +82,9 @@ internal/tui/         read-only Bubble Tea TUI: snapshot.go (data) / model.go / 
 
 **The pipeline.** Every command funnels through `loadContext()` in [main.go](main.go), the only
 place that touches disk config: resolve paths → `config.LoadMachineConfig` →
-`config.LoadRepoConfig` → `state.Load` → `config.Merge`. Then `app.plan()` calls
-`engine.Plan`, which is the single source of truth for "what would apply do":
+`config.LoadRepoConfig` → `state.Load` → `config.Merge` (vars stack: `[vars]` → this machine's
+`[layer_vars]` → machine.toml). Then `app.plan()` calls `engine.Plan`, which is the single
+source of truth for "what would apply do":
 
 ```
 layers.Order(roles, goos, osRelease)  →  layers.Resolve(repoDir, order)   # rel → winning source
@@ -98,8 +99,8 @@ ones. Every command that applies (`apply`, `edit`, `rm`, `init`, `sync`) goes th
 
 ### Invariants to preserve
 
-- **Platform is a parameter, never ambient.** `engine.Plan` and `tui.Build` take `goos` and
-  `osRelease` as arguments; only `main.go` supplies `runtime.GOOS` and
+- **Platform is a parameter, never ambient.** `engine.Plan`, `config.Merge` and `tui.Build` take
+  `goos` and `osRelease` as arguments; only `main.go` supplies `runtime.GOOS` and
   `layers.ReadOSRelease()`. This is what lets tests exercise mac/arch/windows behavior on any
   host, and the TUI resolve all four OS columns at once. Never call `runtime.GOOS` inside
   `internal/` resolution code.
@@ -117,7 +118,11 @@ ones. Every command that applies (`apply`, `edit`, `rm`, `init`, `sync`) goes th
   before any walk) rejects a role layer that isn't a folder in the repo, or isn't a single folder
   name - a skipped typo made its files read `removed`. The one exception is a repo folder that
   doesn't exist at all, which reads as an empty repo (README "Order matters"). `machine.toml`'s
-  `repo` must be absolute after `~` expansion, or layers would resolve against the cwd.
+  `repo` must be absolute after `~` expansion, or layers would resolve against the cwd. Layer
+  names match the repo listing exactly (`os.Stat` ignores case on macOS/Windows, and a name is
+  also a `[layer_vars]` key); `[layer_vars.<name>]` sections get the same check
+  (`layers.CheckVarSections`, run by `CheckLayers`, `init` and doctor), except that
+  `mac`/`linux`/`windows` need no folder and `base` is refused.
 - **`add` records state only for the winning layer.** When `--layer` isn't the layer this machine
   gets the file from (`winningLayer`), the `$HOME` copy is left unrecorded - recording it made
   the next apply overwrite it, or delete it as `removed`.
