@@ -86,6 +86,9 @@ func TestEveryUndefinedVarIsListed(t *testing.T) {
 	if !strings.Contains(f.Detail, "email, host") {
 		t.Errorf("detail = %q, want every undefined var: email, host", f.Detail)
 	}
+	if !strings.Contains(f.Fix, "[layer_vars.") {
+		t.Errorf("fix = %q, want it to mention [layer_vars.<layer>] as a place to define vars", f.Fix)
+	}
 }
 
 // Another OS's copy is substituted on that OS, with that machine's vars.

@@ -106,5 +106,21 @@ func checkConfig(r *report, in Inputs) loaded {
 		}
 		r.add(OK, subject, "", "")
 	}
+
+	// [layer_vars] names, one at a time like the roles above, so every bad
+	// section is listed. A bad one leaves every loaded flag alone: unlike an
+	// unreadable dots.toml, it doesn't stop the dots.toml checks from running.
+	for _, name := range l.cfg.VarSections {
+		subject := fmt.Sprintf("[layer_vars.%s]", name)
+		if err := layers.CheckVarSections(mc.Repo, []string{name}); err != nil {
+			fix := "rename the section to match a layer folder in the repo (mac, linux and windows need none)"
+			if name == "base" {
+				fix = "move these vars to [vars]: base's values are the defaults"
+			}
+			r.add(Error, subject, err.Error(), fix)
+			continue
+		}
+		r.add(OK, subject, "", "")
+	}
 	return l
 }

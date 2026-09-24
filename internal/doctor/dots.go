@@ -174,7 +174,7 @@ func checkVars(r *report, in Inputs, l loaded) {
 			continue
 		}
 		if _, err := subst.Apply(content, cfg.Vars); err != nil {
-			r.add(Error, subject, err.Error(), "define them under [vars] in dots.toml or machine.toml")
+			r.add(Error, subject, err.Error(), "define them under [vars] or [layer_vars.<layer>] in dots.toml, or [vars] in machine.toml")
 		}
 	}
 	r.okIfClean(mark, "vars", "every substituted file on this machine has its vars defined")

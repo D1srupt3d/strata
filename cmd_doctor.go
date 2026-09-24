@@ -21,7 +21,8 @@ with a fix. Other commands stop at the first broken thing; doctor keeps
 going, so one run shows everything.
 
 It checks:
-  config     machine.toml, the repo folder, dots.toml, each role layer
+  config     machine.toml, the repo folder, dots.toml, each role layer,
+             each [layer_vars] section
   dots.toml  entries naming no file in any layer (substitute, hooks,
              permissions), bad ignore or permission patterns, permission
              rules that disagree, undefined {{vars}}
