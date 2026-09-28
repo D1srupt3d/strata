@@ -45,7 +45,7 @@ rm refuses before deleting anything, so it never stops half done.`,
 				if it.Rel == rel {
 					source = it.Source
 				}
-				if it.Blocked(app.State) {
+				if it.Blocked(app.State, nil) { // other removed files are kept, so they never block rm
 					blocked = append(blocked, it)
 				}
 			}
@@ -63,7 +63,9 @@ rm refuses before deleting anything, so it never stops half done.`,
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", source)
-			return runApply(app, cmd.OutOrStdout(), applyOpts{})
+			// Delete this file from $HOME, and only this one: other removed
+			// files may just be on another branch.
+			return runApply(app, cmd.OutOrStdout(), applyOpts{prune: func(r string) bool { return r == rel }})
 		},
 	}
 }

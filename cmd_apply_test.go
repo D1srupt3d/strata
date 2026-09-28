@@ -148,3 +148,130 @@ func TestStatusReportsPendingHook(t *testing.T) {
 		t.Errorf("status claims clean while a hook is pending:\n%s", out)
 	}
 }
+
+// The bug that made deletion opt-in: `strata add` a file on a branch, `git
+// switch` to one without it, and a plain apply deleted the $HOME copy - the
+// only copy, had the add not been committed yet. Plain apply keeps it, status
+// keeps reporting it, and switching back makes it clean again.
+func TestBranchSwitchKeepsFileUntilPrune(t *testing.T) {
+	isolateGit(t)
+	s := sandbox(t)
+	writeFile(t, s.repo("base/.zshrc"), "zsh\n")
+	git(t, s.Repo, "init", "-q", "-b", "main")
+	git(t, s.Repo, "add", ".")
+	git(t, s.Repo, "commit", "-q", "-m", "init")
+	if _, err := run(t, "apply"); err != nil {
+		t.Fatal(err)
+	}
+	git(t, s.Repo, "switch", "-q", "-c", "feat")
+	writeFile(t, s.home(".tmux.conf"), "set -g mouse on\n")
+	if _, err := run(t, "add", ".tmux.conf"); err != nil {
+		t.Fatal(err)
+	}
+	git(t, s.Repo, "add", ".")
+	git(t, s.Repo, "commit", "-q", "-m", "tmux")
+
+	git(t, s.Repo, "switch", "-q", "main")
+	out, err := run(t, "apply")
+	if err != nil {
+		t.Fatalf("apply on main: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".tmux.conf")); got != "set -g mouse on\n" {
+		t.Fatalf("$HOME .tmux.conf = %q after apply on a branch without it", got)
+	}
+	if !containsLine(out, "kept", ".tmux.conf", "--prune") {
+		t.Errorf("apply doesn't say it kept .tmux.conf or how to delete it:\n%s", out)
+	}
+	out, err = run(t, "status")
+	if err == nil || !containsLine(out, "removed", ".tmux.conf") {
+		t.Errorf("status after apply: err = %v, out:\n%s\nwant .tmux.conf still reported as removed, exit 1", err, out)
+	}
+
+	git(t, s.Repo, "switch", "-q", "feat")
+	if out, err := run(t, "status"); err != nil {
+		t.Errorf("status back on feat: %v\n%s", err, out)
+	}
+}
+
+// removedSandbox has two applied files, then deletes .tmux.conf from the repo.
+func removedSandbox(t *testing.T) sandboxEnv {
+	t.Helper()
+	s := sandbox(t)
+	writeFile(t, s.repo("base/.zshrc"), "zsh\n")
+	writeFile(t, s.repo("base/.tmux.conf"), "set -g mouse on\n")
+	if _, err := run(t, "apply"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(s.repo("base/.tmux.conf")); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestApplyPruneDeletesRemovedFile(t *testing.T) {
+	s := removedSandbox(t)
+	out, err := run(t, "apply", "--prune")
+	if err != nil {
+		t.Fatalf("apply --prune: %v\n%s", err, out)
+	}
+	if exists(s.home(".tmux.conf")) {
+		t.Error("apply --prune left .tmux.conf in $HOME")
+	}
+	if out, err := run(t, "status"); err != nil {
+		t.Errorf("status after --prune: %v\n%s", err, out)
+	}
+}
+
+// --prune keeps the old safety rule: an edit made since the last apply is
+// only deleted with --force as well.
+func TestApplyPruneRefusesEditedRemovedFile(t *testing.T) {
+	s := removedSandbox(t)
+	writeFile(t, s.home(".tmux.conf"), "my edit\n")
+	// 'strata add' is the drift fix, and wrong here: it would put the file
+	// back in the repo, undoing the delete. The hint must name the real
+	// choices: keep it (no --prune) or delete it (--force).
+	out, err := run(t, "apply", "--dry-run", "--prune")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsLine(out, "blocked", ".tmux.conf", "leave out --prune") || containsLine(out, ".tmux.conf", "strata add") {
+		t.Errorf("dry run hint for the edited removed file:\n%s\nwant 'leave out --prune', not 'strata add'", out)
+	}
+	_, err = run(t, "apply", "--prune")
+	if err == nil {
+		t.Fatal("apply --prune deleted a file edited since the last apply")
+	}
+	if !containsLine(err.Error(), ".tmux.conf", "leave out --prune", "--force") {
+		t.Errorf("refusal doesn't say how to keep or delete .tmux.conf:\n%v", err)
+	}
+	if !exists(s.home(".tmux.conf")) {
+		t.Fatal("refused apply --prune deleted the file anyway")
+	}
+	if out, err := run(t, "apply", "--prune", "--force"); err != nil {
+		t.Fatalf("apply --prune --force: %v\n%s", err, out)
+	}
+	if exists(s.home(".tmux.conf")) {
+		t.Error("apply --prune --force left the edited file")
+	}
+}
+
+func TestDryRunKeepsRemovedFilesWithoutPrune(t *testing.T) {
+	s := removedSandbox(t)
+	out, err := run(t, "apply", "--dry-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsLine(out, "would remove", ".tmux.conf") || !containsLine(out, "would keep", ".tmux.conf", "--prune") {
+		t.Errorf("dry run without --prune should keep .tmux.conf and name --prune:\n%s", out)
+	}
+	out, err = run(t, "apply", "--dry-run", "--prune")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsLine(out, "would remove", ".tmux.conf") {
+		t.Errorf("dry run with --prune doesn't remove .tmux.conf:\n%s", out)
+	}
+	if !exists(s.home(".tmux.conf")) {
+		t.Error("dry run deleted a file")
+	}
+}

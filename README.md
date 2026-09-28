@@ -130,7 +130,7 @@ strata compares three versions of every file: what the repo builds, what's in `$
 | `drifted` | You edited the home copy; repo unchanged | **Refuses** - keep it with `add`, or `--force` |
 | `conflict` | Both the repo and your home copy changed | **Refuses** - inspect with `diff`, then `add` or `--force` |
 | `unmanaged` | Exists, but strata never wrote it (typical on first apply) | **Refuses** - adopt with `add`, or `--force` |
-| `removed` | strata wrote it, but no layer provides it anymore | Deletes it (refuses if you edited it since) |
+| `removed` | strata wrote it, but no layer provides it anymore | Keeps it; `apply --prune` deletes it (refuses if you edited it since) |
 | `chmod` | Content matches, but the mode doesn't match a `[permissions]` rule or the repo's exec bit | Fixes the mode only (never on Windows) |
 
 What strata guarantees:
@@ -162,6 +162,21 @@ strata apply --force       # …or discard it and take the repo's version
 ```
 
 `conflict` works the same way: it means the repo *also* changed (say, after a `git pull`). Check `strata diff`, then pick a side.
+
+### Stop managing a file
+
+```sh
+strata rm .tmux.conf       # delete it from the repo AND from $HOME
+```
+
+If you delete the file from the repo yourself (`git rm`, a pull, a branch switch), `status` shows it as `removed` and a plain `apply` keeps the `$HOME` copy. strata can't tell a file you deleted on purpose from one that's only missing because the repo is on another git branch, and deleting is the one thing it can't undo. When you do mean it:
+
+```sh
+strata apply --dry-run --prune   # would remove   .tmux.conf
+strata apply --prune             # delete files that left the repo
+```
+
+`--prune` still refuses a file you edited since the last apply; add `--force` to delete it anyway. Switch back to a branch that has the file and it reads `clean` again.
 
 ### A file only some machines get
 
@@ -232,7 +247,7 @@ Go file by file: `strata diff` to compare, `strata add` the ones where this mach
 
 Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 
-> **Order matters: update `machine.toml` before running `apply`.** strata reads a missing repo folder as a repo with no files, so every managed file shows as `removed`, and apply would delete them from `$HOME`. (If you edited any of them, apply refuses instead.) `strata doctor` catches this: it reports a missing repo folder as an error.
+> **Order matters: update `machine.toml` before running `apply --prune`.** strata reads a missing repo folder as a repo with no files, so every managed file shows as `removed`. A plain apply keeps them, but `apply --prune` would delete them from `$HOME`. (If you edited any of them, it refuses instead.) `strata doctor` catches this: it reports a missing repo folder as an error.
 
 ## Commands
 
@@ -242,7 +257,7 @@ Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 | `strata status` | List files that need attention; exit status 1 if any do |
 | `strata doctor` | Check this machine's setup and list every problem, each with a fix; exit status 1 on errors |
 | `strata diff` | Diff what's in `$HOME` against what apply would write |
-| `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes) |
+| `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes, `--prune` to delete files that left the repo) |
 | `strata edit <file>` | Open the winning layer's source in your editor, show the diff, offer to apply |
 | `strata add <file>...` | Copy files from `$HOME` into the repo - adopt new files, or keep local edits (`--layer` to choose where) |
 | `strata rm <file>` | Delete a file from its winning layer, then apply |
@@ -256,7 +271,7 @@ Every command has full help with examples: `strata <command> --help`.
 <details>
 <summary><code>apply</code> - dry runs, partial failures, hooks, symlinks</summary>
 
-- `--dry-run` / `-n` lists what apply would do file by file - `would write`, `would chmod`, `would remove`, `would hook`, or `blocked` with the reason - and writes nothing.
+- `--dry-run` / `-n` lists what apply would do file by file - `would write`, `would chmod`, `would keep` (a removed file, without `--prune`), `would remove`, `would hook`, or `blocked` with the reason - and writes nothing.
 - If a write fails for an I/O reason partway (full disk, unwritable folder), the files already written stay recorded and their hooks queued, so the next apply picks up where it stopped.
 - Hooks run in `$HOME` with no time limit (a first `brew bundle` can take an hour). A failed or interrupted hook stays pending - `status` shows it - and the next apply retries it.
 - A `$HOME` dotfile that's a **symlink** is never silently replaced: apply refuses it like a drifted file, and `--force` swaps in a regular file.

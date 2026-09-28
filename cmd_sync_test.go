@@ -43,3 +43,32 @@ func TestSyncPullsThenAppliesWithPulledConfig(t *testing.T) {
 		t.Error("hook added upstream did not run during the same sync")
 	}
 }
+
+// sync is pull + a plain apply, so it never deletes: a file the pull took out
+// of the repo stays in $HOME until 'strata apply --prune'.
+func TestSyncDoesNotPrune(t *testing.T) {
+	isolateGit(t)
+	s := sandbox(t)
+	origin := filepath.Join(s.Root, "origin")
+	writeFile(t, filepath.Join(origin, "base", ".zshrc"), "zsh\n")
+	writeFile(t, filepath.Join(origin, "base", ".tmux.conf"), "tmux\n")
+	git(t, origin, "init", "-q", "-b", "main")
+	git(t, origin, "add", ".")
+	git(t, origin, "commit", "-q", "-m", "init")
+	git(t, s.Root, "clone", "-q", origin, s.Repo)
+	if _, err := run(t, "apply"); err != nil {
+		t.Fatal(err)
+	}
+	git(t, origin, "rm", "-q", "base/.tmux.conf")
+	git(t, origin, "commit", "-q", "-m", "drop tmux")
+
+	if out, err := run(t, "sync"); err != nil {
+		t.Fatalf("sync: %v\n%s", err, out)
+	}
+	if exists(filepath.Join(s.Repo, "base", ".tmux.conf")) {
+		t.Fatal("the pull didn't happen: .tmux.conf is still in the repo")
+	}
+	if !exists(s.home(".tmux.conf")) {
+		t.Error("sync deleted .tmux.conf from $HOME")
+	}
+}

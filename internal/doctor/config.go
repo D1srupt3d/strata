@@ -46,7 +46,7 @@ func checkConfig(r *report, in Inputs) loaded {
 	}
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			r.add(Error, "repo", err.Error()+" - every command reads a missing repo as an empty one, so every managed file reads as removed and apply would delete them",
+			r.add(Error, "repo", err.Error()+" - every command reads a missing repo as an empty one, so every managed file reads as removed and apply --prune would delete them",
 				"clone your dotfiles repo there, or set repo in machine.toml to where it is")
 		} else {
 			r.add(Error, "repo", err.Error()+" - commands that read the repo fail until this is fixed",

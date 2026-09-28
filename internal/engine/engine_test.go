@@ -99,7 +99,7 @@ func TestIgnoredFileIsForgottenNotDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Apply(all, home, &st, false); err != nil {
+	if _, err := Apply(all, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{".DS_Store", ".claude/settings.json"} {
@@ -213,7 +213,7 @@ func TestStatePathOutsideHomeIsRefused(t *testing.T) {
 	st := state.State{Files: map[string]string{"../outside": fsutil.Hash([]byte("x"))}}
 	items, err := Plan(cfg, home, st, "darwin", "")
 	if err == nil {
-		_, err = Apply(items, home, &st, false)
+		_, err = Apply(items, home, &st, false, nil)
 	}
 	if err == nil {
 		t.Error("a state entry outside $HOME was planned and applied without error")
@@ -236,7 +236,7 @@ func TestApplyWritesAndRefuses(t *testing.T) {
 	st := state.State{Files: map[string]string{}}
 
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	res, err := Apply(items, home, &st, false)
+	res, err := Apply(items, home, &st, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestApplyWritesAndRefuses(t *testing.T) {
 	mustWrite(t, filepath.Join(home, ".zshrc"), "edited\n")
 	mustWrite(t, filepath.Join(cfg.RepoDir, "base", ".zshrc"), "repo change\n")
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err == nil {
+	if _, err := Apply(items, home, &st, false, nil); err == nil {
 		t.Fatal("expected refusal on conflict")
 	}
 	if b, _ := os.ReadFile(filepath.Join(home, ".zshrc")); string(b) != "edited\n" {
@@ -264,7 +264,7 @@ func TestApplyWritesAndRefuses(t *testing.T) {
 
 	// --force wins.
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, true); err != nil {
+	if _, err := Apply(items, home, &st, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(home, ".zshrc")); string(b) != "repo change\n" {
@@ -354,7 +354,7 @@ func TestPermissionRuleReachesUnchangedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -366,7 +366,7 @@ func TestPermissionRuleReachesUnchangedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := Apply(items, home, &st, false)
+	res, err := Apply(items, home, &st, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestNoRuleNeverLoosensAMode(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(filepath.Join(home, ".zshrc"), 0o600); err != nil {
@@ -417,7 +417,7 @@ func TestExecBitReachesUnchangedFile(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(filepath.Join(cfg.RepoDir, "base", ".zshrc"), 0o755); err != nil {
@@ -434,7 +434,7 @@ func TestModesAreNotComparedOnWindows(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	cfg.Permissions = map[string]string{".zshrc": "600"}
@@ -459,7 +459,7 @@ func TestSymlinkInHomeIsNotReplacedWithoutForce(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	// Swap ~/.zshrc for a symlink to an identical file elsewhere.
@@ -480,7 +480,7 @@ func TestSymlinkInHomeIsNotReplacedWithoutForce(t *testing.T) {
 	}
 
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err == nil {
+	if _, err := Apply(items, home, &st, false, nil); err == nil {
 		t.Fatal("apply replaced a symlinked dotfile without --force")
 	}
 	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
@@ -491,7 +491,7 @@ func TestSymlinkInHomeIsNotReplacedWithoutForce(t *testing.T) {
 	}
 
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, true); err != nil {
+	if _, err := Apply(items, home, &st, true, nil); err != nil {
 		t.Fatalf("--force: %v", err)
 	}
 	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink != 0 {
@@ -503,7 +503,7 @@ func TestRemoval(t *testing.T) {
 	cfg, home := fixture(t)
 	st := state.State{Files: map[string]string{}}
 	items, _ := Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -514,14 +514,14 @@ func TestRemoval(t *testing.T) {
 		t.Fatalf(".gitconfig want Update, got %v", s)
 	}
 
-	// Sole provider deleted from the repo → Removed; apply deletes from home
-	// and drops the state entry.
+	// Sole provider deleted from the repo → Removed; apply --prune deletes
+	// from home and drops the state entry.
 	mustRemove(t, filepath.Join(cfg.RepoDir, "base", ".zshrc"))
 	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Removed {
 		t.Fatalf(".zshrc want Removed, got %v", s)
 	}
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	res, err := Apply(items, home, &st, false)
+	res, err := Apply(items, home, &st, false, PruneAll)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,37 +535,156 @@ func TestRemoval(t *testing.T) {
 		t.Fatal("state entry should be gone")
 	}
 
-	// Removed from repo but locally edited → refuse; --force deletes.
+	// Removed from repo but locally edited → --prune refuses; --prune
+	// --force deletes.
 	mustWrite(t, filepath.Join(cfg.RepoDir, "base", ".tmux.conf"), "set -g mouse on\n")
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err != nil {
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	mustRemove(t, filepath.Join(cfg.RepoDir, "base", ".tmux.conf"))
 	mustWrite(t, filepath.Join(home, ".tmux.conf"), "my edit\n")
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, false); err == nil {
+	if _, err := Apply(items, home, &st, false, PruneAll); err == nil {
 		t.Fatal("expected refusal: removed file was locally edited")
 	}
 	if _, err := os.Stat(filepath.Join(home, ".tmux.conf")); err != nil {
 		t.Fatal("blocked apply must not delete")
 	}
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	if _, err := Apply(items, home, &st, true); err != nil {
+	if _, err := Apply(items, home, &st, true, PruneAll); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".tmux.conf")); !os.IsNotExist(err) {
-		t.Fatal("--force should delete")
+		t.Fatal("--prune --force should delete")
 	}
 
 	// Stale state entry (file gone from home AND layers) cleans up silently.
 	st.Files[".ghost"] = "deadbeef"
 	items, _ = Plan(cfg, home, st, "darwin", "")
-	res, err = Apply(items, home, &st, false)
+	res, err = Apply(items, home, &st, false, nil)
 	if err != nil || len(res.Deleted) != 0 {
 		t.Fatalf("ghost cleanup: %v %v", err, res.Deleted)
 	}
 	if _, ok := st.Files[".ghost"]; ok {
 		t.Fatal("stale state entry should be dropped")
+	}
+}
+
+// removedFixture applies the fixture, then deletes .zshrc from the repo: a
+// file strata wrote that no layer provides anymore, as after a git switch to
+// a branch that doesn't have it.
+func removedFixture(t *testing.T) (config.Config, string, state.State) {
+	t.Helper()
+	cfg, home := fixture(t)
+	st := state.State{Files: map[string]string{}}
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	mustRemove(t, filepath.Join(cfg.RepoDir, "base", ".zshrc"))
+	return cfg, home, st
+}
+
+// strata can't tell a file deleted on purpose from one that's only missing
+// because the repo is on another branch, so plain apply never deletes. It
+// keeps the state entry too: dropping it would orphan the file for good,
+// the bug 2026.07.1 fixed.
+func TestPlainApplyKeepsRemovedFile(t *testing.T) {
+	cfg, home, st := removedFixture(t)
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	res, err := Apply(items, home, &st, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(home, ".zshrc")); err != nil || string(got) != "base zshrc\n" {
+		t.Fatalf("$HOME .zshrc = %q, %v; want it kept as is", got, err)
+	}
+	if len(res.Deleted) != 0 || !reflect.DeepEqual(res.Kept, []string{".zshrc"}) {
+		t.Fatalf("Deleted = %v, Kept = %v; want nothing deleted, .zshrc kept", res.Deleted, res.Kept)
+	}
+	if _, ok := st.Files[".zshrc"]; !ok {
+		t.Fatal("state entry dropped: .zshrc would never show as removed again")
+	}
+	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Removed {
+		t.Fatalf("next plan: .zshrc = %v, want still Removed", s)
+	}
+}
+
+// The branch switch undone: the file comes back to the repo and gets the
+// normal three-way comparison, which needs the entry plain apply kept.
+func TestKeptRemovedFileComesBackTracked(t *testing.T) {
+	cfg, home, st := removedFixture(t)
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(cfg.RepoDir, "base", ".zshrc"), "base zshrc\n")
+	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Clean {
+		t.Fatalf("same content back: .zshrc = %v, want Clean", s)
+	}
+	mustWrite(t, filepath.Join(cfg.RepoDir, "base", ".zshrc"), "changed meanwhile\n")
+	if s := plan(t, cfg, home, st)[".zshrc"].Status; s != Update {
+		t.Fatalf("changed content back: .zshrc = %v, want Update", s)
+	}
+}
+
+// Keeping a removed file means an edit to it has nothing to protect against,
+// so it must not block the rest of a plain apply.
+func TestEditedRemovedFileDoesNotBlockPlainApply(t *testing.T) {
+	cfg, home, st := removedFixture(t)
+	mustWrite(t, filepath.Join(home, ".zshrc"), "my edit\n")
+	mustWrite(t, filepath.Join(cfg.RepoDir, "base", ".vimrc"), "set nu\n")
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	for _, it := range items {
+		if it.Blocked(st, nil) {
+			t.Errorf("%s (%v) reads as blocked without --prune", it.Rel, it.Status)
+		}
+	}
+	if _, err := Apply(items, home, &st, false, nil); err != nil {
+		t.Fatalf("plain apply refused: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".vimrc")); err != nil {
+		t.Fatal("new .vimrc not written")
+	}
+	if got, _ := os.ReadFile(filepath.Join(home, ".zshrc")); string(got) != "my edit\n" {
+		t.Fatalf("$HOME .zshrc = %q, want the edit kept", got)
+	}
+}
+
+// --force means "take the repo's version", not "delete": run to settle an
+// unrelated drift, it used to delete every removed file, edited ones too.
+func TestForceAloneNeverDeletes(t *testing.T) {
+	cfg, home, st := removedFixture(t)
+	mustWrite(t, filepath.Join(home, ".zshrc"), "my edit\n")
+	mustWrite(t, filepath.Join(home, ".gitconfig"), "drifted\n")
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	if _, err := Apply(items, home, &st, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(home, ".gitconfig")); string(got) == "drifted\n" {
+		t.Error("--force did not overwrite the drifted .gitconfig")
+	}
+	if got, err := os.ReadFile(filepath.Join(home, ".zshrc")); err != nil || string(got) != "my edit\n" {
+		t.Fatalf("$HOME .zshrc = %q, %v; --force without --prune must not delete", got, err)
+	}
+}
+
+// rm prunes only its own file: other removed files stay put.
+func TestPruneDeletesOnlySelectedFiles(t *testing.T) {
+	cfg, home, st := removedFixture(t)
+	mustRemove(t, filepath.Join(cfg.RepoDir, "base", ".gitconfig"))
+	mustRemove(t, filepath.Join(cfg.RepoDir, "work", ".gitconfig"))
+	items, _ := Plan(cfg, home, st, "darwin", "")
+	only := func(rel string) bool { return rel == ".zshrc" }
+	res, err := Apply(items, home, &st, false, only)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(res.Deleted, []string{".zshrc"}) || !reflect.DeepEqual(res.Kept, []string{".gitconfig"}) {
+		t.Fatalf("Deleted = %v, Kept = %v; want .zshrc deleted, .gitconfig kept", res.Deleted, res.Kept)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Fatal(".gitconfig deleted although it wasn't selected")
 	}
 }
