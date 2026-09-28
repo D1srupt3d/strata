@@ -131,6 +131,20 @@ for something dumb both times, the way the work Mac delivered in 2026.9.0.
 Nothing showed up - which mostly says the fixture tests were testing the
 right things.
 
+## done - September 2026: deleting is opt-in
+
+2026.07.1 made removal automatic, and a branch switch showed why that was
+wrong. I `strata add`-ed a file on a branch, switched back to `main`, and the
+next apply would have deleted the only copy: to strata, "not on this branch"
+and "deleted on purpose" look identical, and the file was exactly what it
+last wrote, so the "don't clobber my edits" rule didn't fire. Now a plain
+`apply` keeps a removed file (state entry and all, so `status` keeps nagging
+and switching back reads clean), and `apply --prune` is the explicit "yes,
+delete". `strata rm` still deletes its own file, and only that one. The
+same review found `--force` deleting edited removed files as a side effect
+of settling an unrelated drift - `--force` now means "take the repo's
+version" and nothing else.
+
 ## soon-ish
 
 **Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
