@@ -184,10 +184,23 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 	return items, nil
 }
 
+// Prune selects the removed files apply may delete from $HOME. nil selects
+// none, and that's the default: strata can't tell a file deleted from the
+// repo on purpose from one that's only missing because the repo is on
+// another git branch, and a delete is the one thing apply can't undo.
+type Prune func(rel string) bool
+
+// PruneAll is apply --prune: every removed file may be deleted.
+func PruneAll(string) bool { return true }
+
+// Selects reports whether p lets apply delete rel; nil selects nothing.
+func (p Prune) Selects(rel string) bool { return p != nil && p(rel) }
+
 type ApplyResult struct {
 	Written  []string // rels actually written
 	Chmodded []string // rels whose mode was fixed without rewriting content
 	Deleted  []string // rels deleted from $HOME (file left every layer)
+	Kept     []string // removed rels left in $HOME because prune didn't select them
 	Blocked  []Item   // changes refused (drift/conflict/unmanaged/edited-removal)
 }
 
@@ -201,16 +214,18 @@ func (r ApplyResult) Changed() bool {
 // Blocked reports whether apply refuses this item without --force: the
 // $HOME copy holds content strata didn't write (drifted, conflict,
 // unmanaged); applying would replace a symlink the user set up (writing
-// renames a regular file over the link); or a removed file was hand-edited
-// after the last apply, so deleting it would destroy those edits.
-func (it Item) Blocked(st state.State) bool {
+// renames a regular file over the link); or prune selected a removed file
+// that was hand-edited after the last apply, so deleting it would destroy
+// those edits. A removed file prune doesn't select is kept, so it never
+// blocks.
+func (it Item) Blocked(st state.State, prune Prune) bool {
 	switch it.Status {
 	case Drifted, Conflict, Unmanaged:
 		return true
 	case Update, Chmod:
 		return it.Symlink
 	case Removed:
-		return it.Current != nil && fsutil.Hash(it.Current) != st.Files[it.Rel]
+		return prune.Selects(it.Rel) && it.Current != nil && fsutil.Hash(it.Current) != st.Files[it.Rel]
 	}
 	return false
 }
@@ -224,18 +239,23 @@ func BlockedList(blocked []Item) string {
 		if it.Symlink {
 			b.WriteString(" (a symlink - strata won't replace it; --force swaps in a regular file)")
 		}
+		if it.Status == Removed { // 'strata add' would undo the delete
+			b.WriteString(" (edited since the last apply - leave out --prune to keep it, add --force to delete it)")
+		}
 	}
 	return b.String()
 }
 
 // Apply writes Create/Update items, fixes Chmod items' modes, and deletes
-// Removed ones. If any item is Blocked and force is false, it changes
-// NOTHING and returns an error; resolve with 'strata add <file>' (keep
-// home) or --force (keep repo).
-func Apply(items []Item, homeDir string, st *state.State, force bool) (ApplyResult, error) {
+// the Removed ones prune selects. The rest are kept, state entry and all, so
+// they still read as removed next time - and as clean again if the file
+// comes back, say on a switch back to the branch that has it. If any item is
+// Blocked and force is false, it changes NOTHING and returns an error;
+// resolve with 'strata add <file>' (keep home) or --force (keep repo).
+func Apply(items []Item, homeDir string, st *state.State, force bool, prune Prune) (ApplyResult, error) {
 	var res ApplyResult
 	for _, it := range items {
-		if it.Blocked(*st) {
+		if it.Blocked(*st, prune) {
 			res.Blocked = append(res.Blocked, it)
 		}
 	}
@@ -244,6 +264,10 @@ func Apply(items []Item, homeDir string, st *state.State, force bool) (ApplyResu
 	}
 	for _, it := range items {
 		if it.Status == Removed {
+			if it.Current != nil && !prune.Selects(it.Rel) {
+				res.Kept = append(res.Kept, it.Rel)
+				continue
+			}
 			if it.Current != nil {
 				if err := os.Remove(filepath.Join(homeDir, filepath.FromSlash(it.Rel))); err != nil && !os.IsNotExist(err) {
 					return res, fmt.Errorf("removing %s: %w", it.Rel, err)

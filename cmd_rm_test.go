@@ -61,3 +61,31 @@ func TestRmRefusesUpFrontWhenApplyWouldBeBlocked(t *testing.T) {
 		t.Error("rm deleted the source although the apply after it was going to refuse")
 	}
 }
+
+// rm deletes the file it names, not every removed file: another file that
+// left the repo (say, it's only on another branch) stays in $HOME.
+func TestRmDeletesOnlyItsOwnFile(t *testing.T) {
+	s := removedSandbox(t)
+	if out, err := run(t, "rm", ".zshrc"); err != nil {
+		t.Fatalf("rm: %v\n%s", err, out)
+	}
+	if exists(s.home(".zshrc")) {
+		t.Error("rm left .zshrc in $HOME")
+	}
+	if !exists(s.home(".tmux.conf")) {
+		t.Error("rm .zshrc also deleted the unrelated removed .tmux.conf")
+	}
+}
+
+// An edited removed file is only blocked when something would delete it; it
+// must not make rm of a different file refuse.
+func TestRmIgnoresAnEditedRemovedFile(t *testing.T) {
+	s := removedSandbox(t)
+	writeFile(t, s.home(".tmux.conf"), "my edit\n")
+	if out, err := run(t, "rm", ".zshrc"); err != nil {
+		t.Fatalf("rm refused over an unrelated removed file: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.home(".tmux.conf")); got != "my edit\n" {
+		t.Errorf("$HOME .tmux.conf = %q, want the edit kept", got)
+	}
+}

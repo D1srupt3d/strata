@@ -11,14 +11,17 @@ import (
 	"strata/internal/state"
 )
 
-// applyOpts are apply's flags. edit, rm, init and sync call runApply with
-// the zero value, so every path into apply behaves identically.
+// applyOpts are apply's flags. edit, init and sync call runApply with the
+// zero value, so every path into apply behaves identically - and none of
+// them deletes a file. rm sets prune to just the file it removed.
 type applyOpts struct {
 	dryRun, force bool
+	prune         engine.Prune
 }
 
 func newApplyCmd() *cobra.Command {
 	var opts applyOpts
+	var prune bool
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Build files from layers + vars and copy changes into $HOME, then run hooks",
@@ -35,26 +38,36 @@ Safety rules:
     you can't write to), the files already written are recorded and their
     hooks queued, so the next apply picks up where this one stopped.
   - An undefined {{var}} in a substituted file aborts before anything is
-    written.`,
+    written.
+  - A file strata wrote that's no longer in the repo (status 'removed') is
+    kept in $HOME unless you pass --prune: strata can't tell a file you
+    deleted from one that's only missing because the repo is on another
+    git branch. --prune still refuses a file you edited since the last
+    apply; add --force to delete it anyway.`,
 		Example: `  strata apply --dry-run    preview without writing
   strata apply              write changes, run hooks
-  strata apply --force      also overwrite drifted/conflicting files`,
+  strata apply --force      also overwrite drifted/conflicting files
+  strata apply --prune      also delete files that left the repo`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {
 				return err
+			}
+			if prune {
+				opts.prune = engine.PruneAll
 			}
 			return runApply(app, cmd.OutOrStdout(), opts)
 		},
 	}
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "n", false, "show what would change without writing")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite drifted/conflicting/unmanaged files")
+	cmd.Flags().BoolVar(&prune, "prune", false, "delete files that are no longer in the repo from $HOME")
 	return cmd
 }
 
 // printPlan is --dry-run: what apply would do, file by file, including the
 // all-or-nothing rule - one blocked file means apply writes nothing at all.
-func printPlan(out io.Writer, items []engine.Item, st state.State, hooks map[string]string, force bool) {
+func printPlan(out io.Writer, items []engine.Item, st state.State, hooks map[string]string, force bool, prune engine.Prune) {
 	lines, blocked := 0, 0
 	var hooked []string
 	for _, it := range items {
@@ -62,14 +75,24 @@ func printPlan(out io.Writer, items []engine.Item, st state.State, hooks map[str
 		switch {
 		case it.Status == engine.Clean:
 			continue
-		case it.Blocked(st) && !force:
+		case it.Blocked(st, prune) && !force:
 			reason := "keep yours with 'strata add', or take the repo's with --force"
 			if it.Symlink {
 				reason = "it's a symlink strata won't replace; --force swaps in a regular file"
 			}
+			if it.Status == engine.Removed {
+				reason = "edited since the last apply; leave out --prune to keep it, or add --force to delete it"
+			}
 			fmt.Fprintf(out, "%-12s %s (%s: %s)\n", "blocked", it.Rel, it.Status, reason)
 			lines++
 			blocked++
+			continue
+		case it.Status == engine.Removed && !prune.Selects(it.Rel):
+			if it.Current == nil {
+				continue // already gone from $HOME: only a stale state entry to drop
+			}
+			fmt.Fprintf(out, "%-12s %s (removed: not in the repo; --prune deletes it)\n", "would keep", it.Rel)
+			lines++
 			continue
 		case it.Status == engine.Removed:
 			verb = "would remove"
@@ -120,10 +143,10 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 		return err
 	}
 	if opts.dryRun {
-		printPlan(out, items, app.State, app.Cfg.Hooks, opts.force)
+		printPlan(out, items, app.State, app.Cfg.Hooks, opts.force, opts.prune)
 		return nil
 	}
-	res, applyErr := engine.Apply(items, app.Paths.Home, &app.State, opts.force)
+	res, applyErr := engine.Apply(items, app.Paths.Home, &app.State, opts.force, opts.prune)
 	if applyErr != nil && !res.Changed() {
 		return applyErr // refused, or failed before touching $HOME
 	}
@@ -151,11 +174,14 @@ func runApply(app *appContext, out io.Writer, opts applyOpts) error {
 	for _, rel := range res.Deleted {
 		fmt.Fprintf(out, "removed %s\n", rel)
 	}
+	for _, rel := range res.Kept {
+		fmt.Fprintf(out, "kept %s (not in the repo anymore - 'strata apply --prune' deletes it)\n", rel)
+	}
 	if applyErr != nil {
 		return fmt.Errorf("%w\n(what was written before the error is recorded and its hooks are queued - fix the problem, then run 'strata apply' again)", applyErr)
 	}
 	pending := app.State.PendingHooks
-	if !res.Changed() && len(pending) == 0 {
+	if !res.Changed() && len(res.Kept) == 0 && len(pending) == 0 {
 		fmt.Fprintln(out, "nothing to do")
 	}
 	if len(pending) == 0 {
