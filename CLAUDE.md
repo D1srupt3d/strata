@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## What this is
 
 strata is a cross-platform dotfiles manager (macOS/Linux/Windows). A dotfiles repo mirrors
@@ -38,28 +36,34 @@ sh install.sh         # build + install to ~/.local/bin (STRATA_BIN_DIR override
 
 CI (`.github/workflows/ci.yml`) runs `gofmt -l` and `go test -race` (Linux only), and `go vet`,
 `go build`, `go test`, staticcheck and govulncheck on ubuntu/macos/windows for every push to `main`
-and every PR. The linters run on every OS because they only analyze code built for the OS they run
-on (`lock_windows.go` is invisible to a Linux run); to check another OS locally, `go install` them
-and run with `GOOS=windows` (a `go run` with `GOOS` set builds a binary this machine can't run). The two linters run via `go run pkg@vX.Y.Z`, pinned to exact versions - bump them
-deliberately. govulncheck scans the standard library of the Go that runs it, and CI (and the
-release build) use the `go` version in `go.mod` - so to match CI locally run it as
-`GOTOOLCHAIN=go<that version> go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`. A newer
-local Go can report clean while CI fails. When it flags the standard library, bump the `go` line
-in `go.mod` to the fixed patch release. Run the same
-gate locally first - the Windows leg is the one that catches path-separator mistakes. Workflow
-actions are pinned to full commit SHAs with a `# vX.Y.Z` comment (Renovate bumps both); keep it
-that way when adding steps.
+and every PR. Run the same gate locally first - the Windows leg is the one that catches
+path-separator mistakes.
+
+- **Linters run on every OS** because they only analyze code built for the OS they run on
+  (`lock_windows.go` is invisible to a Linux run). To check another OS locally, `go install` them
+  and run with `GOOS=windows` (a `go run` with `GOOS` set builds a binary this machine can't run).
+- **Linters are pinned** to exact versions via `go run pkg@vX.Y.Z` - bump them deliberately.
+- **govulncheck scans the standard library of the Go that runs it**, and CI (and the release
+  build) use the `go` version in `go.mod`, so a newer local Go can report clean while CI fails.
+  To match CI locally:
+  `GOTOOLCHAIN=go<that version> go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`.
+  When it flags the standard library, bump the `go` line in `go.mod` to the fixed patch release.
+- **Workflow actions are pinned** to full commit SHAs with a `# vX.Y.Z` comment (Renovate bumps
+  both); keep it that way when adding steps.
 
 Releases are tag-driven: pushing a `v*` tag runs `release.yml` → GoReleaser (darwin/linux/windows
-× amd64/arm64), then attaches signed build provenance to every archive and `checksums.txt`
-(verify with `gh attestation verify <file> --repo D1srupt3d/strata`). GoReleaser's `signs:` step
-signs `checksums.txt` with the release SSH key (`ssh-keygen -Y sign -n strata-release`) →
-`checksums.txt.sig`; the private key is the `STRATA_RELEASE_KEY` secret in the GitHub environment
-`release` (deployment rule: `v*` tags only). release.yml fails if the secret is missing and verifies
-the published signature afterwards - **never publish an unsigned release**; `strata upgrade` and
-`get.sh` refuse them. Check GoReleaser config locally with
-`go run github.com/goreleaser/goreleaser/v2@latest check`. Tags must be **un-padded**
-CalVer - `v2026.8.0`, not `v2026.08.0`; GoReleaser enforces semver and rejects a zero-padded month.
+× amd64/arm64).
+
+- **Never publish an unsigned release** - `strata upgrade` and `get.sh` refuse them. release.yml
+  fails if the signing secret is missing and verifies the published signature afterwards.
+- **Signing:** GoReleaser's `signs:` step signs `checksums.txt` with the release SSH key
+  (`ssh-keygen -Y sign -n strata-release`) → `checksums.txt.sig`. The private key is the
+  `STRATA_RELEASE_KEY` secret in the GitHub environment `release` (deployment rule: `v*` tags only).
+- **Provenance:** after GoReleaser, every archive and `checksums.txt` gets signed build provenance
+  (verify with `gh attestation verify <file> --repo D1srupt3d/strata`).
+- **Tags must be un-padded CalVer** - `v2026.8.0`, not `v2026.08.0`; GoReleaser enforces semver
+  and rejects a zero-padded month.
+- Check GoReleaser config locally with `go run github.com/goreleaser/goreleaser/v2@latest check`.
 
 ## Architecture
 
@@ -189,6 +193,6 @@ status table in `README.md` together.
 
 ## Repo notes
 
-- `.gitignore` excludes the built `/strata` binary, `dist/`, `.claude/`, and `/docs/`. Every
-  ignored path is deliberate - treat the list as load-bearing and don't prune entries that look
-  unused just because the directory isn't in a fresh clone. That's precisely why they're ignored.
+- Every entry in `.gitignore` is deliberate (e.g. `/docs/` holds local-only working notes) -
+  treat the list as load-bearing and don't prune entries that look unused just because the
+  directory isn't in a fresh clone. That's precisely why they're ignored.
