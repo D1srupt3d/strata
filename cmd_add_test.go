@@ -156,3 +156,101 @@ func TestAddWithExplicitLayerWorksWhenPlanFails(t *testing.T) {
 		t.Errorf("base/.gitconfig changed: %q", got)
 	}
 }
+
+// Several files in one call each get adopted and recorded, so a follow-up
+// status is clean - the same result as adding them one by one.
+func TestAddSeveralFiles(t *testing.T) {
+	s := sandbox(t)
+	for _, f := range []string{".a", ".b", ".config/c"} {
+		writeFile(t, s.home(f), f+"\n")
+	}
+	out, err := run(t, "add", ".a", "~/.b", s.home(".config/c"))
+	if err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	for _, f := range []string{".a", ".b", ".config/c"} {
+		if got := readFile(t, s.repo("base/"+f)); got != f+"\n" {
+			t.Errorf("base/%s = %q", f, got)
+		}
+		if !containsLine(out, "added", f) {
+			t.Errorf("no 'added %s' line:\n%s", f, out)
+		}
+	}
+	if out, err := run(t, "status"); err != nil {
+		t.Errorf("status after add: %v, want clean\n%s", err, out)
+	}
+}
+
+// One bad path must stop the whole add before anything is written - a typo
+// in the third argument shouldn't leave the first two half-adopted.
+func TestAddSeveralFilesIsAllOrNothing(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".a"), "a\n")
+	for _, bad := range []string{".missing", filepath.Join(s.Root, "outside")} {
+		writeFile(t, filepath.Join(s.Root, "outside"), "x\n")
+		if _, err := run(t, "add", ".a", bad); err == nil {
+			t.Errorf("add .a %s succeeded; want an error", bad)
+		}
+		if exists(s.repo("base/.a")) {
+			t.Fatalf("add .a %s wrote base/.a before failing", bad)
+		}
+	}
+}
+
+// Without --layer each file goes to the layer that wins for it, so one call
+// can absorb a work-only edit and adopt a new file into base/.
+func TestAddSeveralFilesEachToItsWinningLayer(t *testing.T) {
+	s := sandbox(t, "work")
+	writeFile(t, s.repo("work/.gitconfig"), "work\n")
+	if _, err := run(t, "apply"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, s.home(".gitconfig"), "edited work\n")
+	writeFile(t, s.home(".new"), "new\n")
+	if out, err := run(t, "add", ".gitconfig", ".new"); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.repo("work/.gitconfig")); got != "edited work\n" {
+		t.Errorf("work/.gitconfig = %q", got)
+	}
+	if exists(s.repo("base/.gitconfig")) {
+		t.Error("the work-only .gitconfig leaked into base/")
+	}
+	if got := readFile(t, s.repo("base/.new")); got != "new\n" {
+		t.Errorf("base/.new = %q", got)
+	}
+	if out, err := run(t, "status"); err != nil {
+		t.Errorf("status after add: %v, want clean\n%s", err, out)
+	}
+}
+
+// --layer applies to every file in the call.
+func TestAddSeveralFilesWithLayer(t *testing.T) {
+	s := sandbox(t, "work")
+	writeFile(t, s.home(".a"), "a\n")
+	writeFile(t, s.home(".b"), "b\n")
+	if out, err := run(t, "add", ".a", ".b", "--layer", "work"); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	for _, f := range []string{".a", ".b"} {
+		if !exists(s.repo("work/" + f)) {
+			t.Errorf("work/%s missing", f)
+		}
+		if exists(s.repo("base/" + f)) {
+			t.Errorf("base/%s written despite --layer work", f)
+		}
+	}
+}
+
+// The same file named two ways is added once, not twice.
+func TestAddSameFileTwiceAddsOnce(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".a"), "a\n")
+	out, err := run(t, "add", ".a", "~/.a")
+	if err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if n := strings.Count(out, "added"); n != 1 {
+		t.Errorf("%d 'added' lines, want 1:\n%s", n, out)
+	}
+}

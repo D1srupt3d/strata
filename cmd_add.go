@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"strata/internal/engine"
 	"strata/internal/fsutil"
 	"strata/internal/layers"
 	"strata/internal/state"
@@ -35,8 +37,8 @@ func relFromArg(arg, home string) (string, error) {
 func newAddCmd() *cobra.Command {
 	var layer string
 	cmd := &cobra.Command{
-		Use:   "add <file>",
-		Short: "Copy a file from $HOME into the repo (adopt a new file, or absorb local edits)",
+		Use:   "add <file>...",
+		Short: "Copy files from $HOME into the repo (adopt new files, or absorb local edits)",
 		Long: `One command for two jobs:
 
   adopt   a file strata doesn't manage yet: it lands in base/ (or --layer)
@@ -48,6 +50,10 @@ else base. If the repo can't be planned (e.g. an undefined {{var}}), add
 refuses rather than guess - fix the error, or name the layer with --layer.
 Paths may be ~-relative, $HOME-relative, or absolute.
 
+Several files can be added at once, each to its own winning layer (or all
+to --layer). Every path is checked before anything is written, so one bad
+path means nothing is added.
+
 --layer must be a folder in the repo or one of this machine's layers. When
 that layer isn't the one this machine gets the file from (a later layer
 overrides it, or it isn't one of this machine's layers), the copy is saved
@@ -57,74 +63,115 @@ If the file uses {{var}} substitution you'll get a warning: the copy you
 captured contains the expanded values - restore the {{tokens}} by hand.`,
 		Example: `  strata add .vimrc              adopt a new file into base/
   strata add .zshrc              absorb your local .zshrc edits
+  strata add .zshrc .vimrc ~/.config/git/*
   strata add .Brewfile --layer mac`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {
 				return err
 			}
-			rel, err := relFromArg(args[0], app.Paths.Home)
-			if err != nil {
-				return err
-			}
-			homePath := filepath.Join(app.Paths.Home, filepath.FromSlash(rel))
-			content, err := os.ReadFile(homePath)
-			if err != nil {
-				return err
-			}
 			order := app.order()
 
-			target := layer
-			if target != "" {
-				if err := checkTargetLayer(app.Cfg.RepoDir, target, order); err != nil {
+			var items []engine.Item
+			if layer != "" {
+				if err := checkTargetLayer(app.Cfg.RepoDir, layer, order); err != nil {
 					return err
 				}
 			} else {
-				// The target is the layer that wins for rel. If planning fails we
-				// can't know it, and guessing base/ could push a work-only file
-				// to every machine - refuse instead.
-				items, err := app.plan()
-				if err != nil {
-					return fmt.Errorf("can't tell which layer %s belongs in: %w (fix that, or pass --layer)", rel, err)
+				// The target is the layer that wins for each file. If planning
+				// fails we can't know it, and guessing base/ could push a
+				// work-only file to every machine - refuse instead.
+				if items, err = app.plan(); err != nil {
+					return fmt.Errorf("can't tell which layer %s belongs in: %w (fix that, or pass --layer)", strings.Join(args, ", "), err)
 				}
-				target = "base"
-				for _, it := range items {
-					if it.Rel == rel { // winning layer = first path element under repo
-						if l, err := filepath.Rel(app.Cfg.RepoDir, it.Source); err == nil {
-							target = strings.Split(filepath.ToSlash(l), "/")[0]
+			}
+
+			// First pass: check every file before writing any, so one bad
+			// argument can't leave the others half-added.
+			type addFile struct {
+				rel, target string
+				content     []byte
+				mode        os.FileMode
+			}
+			var files []addFile
+			seen := map[string]bool{}
+			for _, arg := range args {
+				rel, err := relFromArg(arg, app.Paths.Home)
+				if err != nil {
+					return err
+				}
+				if seen[rel] {
+					continue
+				}
+				seen[rel] = true
+				homePath := filepath.Join(app.Paths.Home, filepath.FromSlash(rel))
+				content, err := os.ReadFile(homePath)
+				if err != nil {
+					return err
+				}
+				info, err := os.Stat(homePath)
+				if err != nil {
+					return err
+				}
+				target := layer
+				if target == "" {
+					target = "base"
+					for _, it := range items {
+						if it.Rel == rel { // winning layer = first path element under repo
+							if l, err := filepath.Rel(app.Cfg.RepoDir, it.Source); err == nil {
+								target = strings.Split(filepath.ToSlash(l), "/")[0]
+							}
 						}
 					}
 				}
+				files = append(files, addFile{rel, target, content, info.Mode().Perm()})
 			}
-			for _, s := range app.Cfg.Substitute {
-				if s == rel {
+
+			// Second pass: write. Only when target is the layer this machine
+			// gets rel from do $HOME and the layers agree, so only then is the
+			// $HOME copy recorded as applied. Recording it otherwise made the
+			// next apply "update" $HOME back to the winning layer's copy - or,
+			// for a layer this machine doesn't use, delete the file as removed.
+			out := cmd.OutOrStdout()
+			record := map[string]string{}
+			var writeErr error
+			for _, f := range files {
+				for _, s := range app.Cfg.Substitute {
+					if s == f.rel {
+						fmt.Fprintf(cmd.ErrOrStderr(),
+							"warning: %s uses {{var}} substitution - you just captured the EXPANDED values; restore the {{tokens}} by hand (strata edit %s)\n", f.rel, f.rel)
+					}
+				}
+				dest := filepath.Join(app.Cfg.RepoDir, f.target, filepath.FromSlash(f.rel))
+				if writeErr = fsutil.WriteFileAtomic(dest, f.content, f.mode); writeErr != nil {
+					break
+				}
+				fmt.Fprintf(out, "added %s → %s/%s\n", f.rel, f.target, f.rel)
+
+				winner, err := winningLayer(app.Cfg.RepoDir, f.rel, order, app.Cfg.Ignore)
+				if err != nil {
+					writeErr = err
+					break
+				}
+				switch {
+				case winner == f.target:
+					record[f.rel] = fsutil.Hash(f.content)
+				case winner != "":
 					fmt.Fprintf(cmd.ErrOrStderr(),
-						"warning: %s uses {{var}} substitution - you just captured the EXPANDED values; restore the {{tokens}} by hand (strata edit %s)\n", rel, rel)
+						"warning: %s/%s wins on this machine, so $HOME keeps getting that copy and your $HOME file is left as it is - to use it here too: strata add %s --layer %s\n",
+						winner, f.rel, f.rel, winner)
+				case !slices.Contains(order, f.target):
+					fmt.Fprintf(out, "note: %s isn't one of this machine's layers (%s), so strata doesn't manage %s here - the $HOME copy is left as it is\n",
+						f.target, strings.Join(order, ", "), f.rel)
+				default:
+					fmt.Fprintf(out, "note: %s matches an ignore pattern, so strata doesn't manage it\n", f.rel)
 				}
 			}
-			info, err := os.Stat(homePath)
-			if err != nil {
-				return err
-			}
-			dest := filepath.Join(app.Cfg.RepoDir, target, filepath.FromSlash(rel))
-			if err := fsutil.WriteFileAtomic(dest, content, info.Mode().Perm()); err != nil {
-				return err
-			}
-			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "added %s → %s/%s\n", rel, target, rel)
 
-			// Only when target is the layer this machine gets rel from do
-			// $HOME and the layers agree, so only then is the $HOME copy
-			// recorded as applied. Recording it otherwise made the next apply
-			// "update" $HOME back to the winning layer's copy - or, for a
-			// layer this machine doesn't use, delete the file as removed.
-			winner, err := winningLayer(app.Cfg.RepoDir, rel, order, app.Cfg.Ignore)
-			if err != nil {
-				return err
-			}
-			switch {
-			case winner == target:
+			// Record what was written even when a later write failed (as
+			// runApply does), then return that error.
+			if len(record) > 0 {
 				unlock, err := state.Lock(app.Paths.State)
 				if err != nil {
 					return err
@@ -134,19 +181,12 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 				if err != nil {
 					return err
 				}
-				st.Files[rel] = fsutil.Hash(content)
-				return st.Save(app.Paths.State)
-			case winner != "":
-				fmt.Fprintf(cmd.ErrOrStderr(),
-					"warning: %s/%s wins on this machine, so $HOME keeps getting that copy and your $HOME file is left as it is - to use it here too: strata add %s --layer %s\n",
-					winner, rel, rel, winner)
-			case !slices.Contains(order, target):
-				fmt.Fprintf(out, "note: %s isn't one of this machine's layers (%s), so strata doesn't manage %s here - the $HOME copy is left as it is\n",
-					target, strings.Join(order, ", "), rel)
-			default:
-				fmt.Fprintf(out, "note: %s matches an ignore pattern, so strata doesn't manage it\n", rel)
+				maps.Copy(st.Files, record)
+				if err := st.Save(app.Paths.State); err != nil {
+					return err
+				}
 			}
-			return nil
+			return writeErr
 		},
 	}
 	cmd.Flags().StringVar(&layer, "layer", "", "target layer: a folder in the repo or one of this machine's layers (default: winning layer, else base)")
