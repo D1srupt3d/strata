@@ -9,3 +9,7 @@
 .claude/
 # local-only working notes
 /docs/
+
+# Claude Code memory files - never shared
+CLAUDE.md
+CLAUDE.local.md
