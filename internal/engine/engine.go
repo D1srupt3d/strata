@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"strata/internal/config"
 	"strata/internal/fsutil"
@@ -46,6 +47,11 @@ type Item struct {
 	Current []byte // nil if the file doesn't exist in home
 	Status  FileStatus
 	Symlink bool // the $HOME path is a symlink: replacing it needs --force
+	// Modified times, for diff headers only; zero when that side is missing.
+	// Never used for status: a git pull stamps the repo copy with the pull
+	// time, so only the hashes say which side really changed.
+	SourceModTime  time.Time
+	CurrentModTime time.Time
 }
 
 func inList(s string, list []string) bool {
@@ -109,7 +115,7 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 			return nil, err
 		}
 
-		it := Item{Rel: rel, Source: src, Desired: desired, Mode: mode}
+		it := Item{Rel: rel, Source: src, Desired: desired, Mode: mode, SourceModTime: srcInfo.ModTime()}
 		homePath := filepath.Join(homeDir, filepath.FromSlash(rel))
 		if fi, lerr := os.Lstat(homePath); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
 			it.Symlink = true
@@ -123,6 +129,9 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 			return nil, err
 		default:
 			it.Current = current
+			if it.CurrentModTime, err = modTime(homePath); err != nil {
+				return nil, err
+			}
 			switch {
 			case bytes.Equal(current, desired):
 				it.Status = Clean
@@ -172,16 +181,52 @@ func Plan(cfg config.Config, homeDir string, st state.State, goos, osRelease str
 	sort.Strings(gone)
 	for _, rel := range gone {
 		it := Item{Rel: rel, Status: Removed}
-		current, err := os.ReadFile(filepath.Join(homeDir, filepath.FromSlash(rel)))
+		homePath := filepath.Join(homeDir, filepath.FromSlash(rel))
+		current, err := os.ReadFile(homePath)
 		switch {
 		case err == nil:
 			it.Current = current
+			if it.CurrentModTime, err = modTime(homePath); err != nil {
+				return nil, err
+			}
 		case !os.IsNotExist(err):
 			return nil, err
 		}
 		items = append(items, it)
 	}
 	return items, nil
+}
+
+func modTime(path string) (time.Time, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return fi.ModTime(), nil
+}
+
+// DiffHeaders returns the "home/<rel>" and "repo/<rel>" diff header lines,
+// each with its side's modified time, and on the home line the status in
+// words: drifted and update name the side with the newer edit, from the
+// hashes; a conflict leaves it to the times.
+func DiffHeaders(it Item) (from, to string) {
+	stamp := func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return "  " + t.Local().Format("2006-01-02 15:04")
+	}
+	why := it.Status.String()
+	switch it.Status {
+	case Drifted:
+		why += ": $HOME has the newer edit"
+	case Update:
+		why += ": the repo has the newer edit"
+	case Conflict:
+		why += ": both changed, the times show which is more recent"
+	}
+	return "home/" + it.Rel + stamp(it.CurrentModTime) + "  (" + why + ")",
+		"repo/" + it.Rel + stamp(it.SourceModTime)
 }
 
 // Prune selects the removed files apply may delete from $HOME. nil selects

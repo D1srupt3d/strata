@@ -18,7 +18,13 @@ func newDiffCmd() *cobra.Command {
 against repo/<file> (what apply would write).
 
 Because it compares in both directions, edits you made directly in $HOME
-show up too - as lines apply would remove. No drift is ever silent.`,
+show up too - as lines apply would remove. No drift is ever silent.
+
+Each header shows that copy's last-modified time, and the home header says
+which copy has the newer edit (drifted: $HOME, update: the repo). That
+comes from strata's hashes, not the clock. The times help with a conflict,
+where both changed - but a git pull stamps repo files with the pull time,
+not the time of the edit.`,
 		Example: `  strata diff
   strata diff | less`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -41,11 +47,12 @@ func writeDiff(app *appContext, out io.Writer) error {
 		if it.Status == engine.Clean {
 			continue
 		}
+		from, to := engine.DiffHeaders(it)
 		text, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 			A:        difflib.SplitLines(string(it.Current)),
 			B:        difflib.SplitLines(string(it.Desired)),
-			FromFile: "home/" + it.Rel + " (" + it.Status.String() + ")",
-			ToFile:   "repo/" + it.Rel,
+			FromFile: from,
+			ToFile:   to,
 			Context:  3,
 		})
 		if err != nil {

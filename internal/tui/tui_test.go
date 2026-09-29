@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"strata/internal/config"
+	"strata/internal/engine"
 	"strata/internal/state"
 )
 
@@ -227,5 +228,16 @@ func TestModelNavigation(t *testing.T) {
 	v = m.View().Content
 	if !strings.Contains(v, "↷ work") {
 		t.Fatalf("layers tab should show override marker:\n%s", v)
+	}
+}
+
+// The drilldown diff uses the same headers as 'strata diff': without the
+// status, a drifted file's diff looked just like a pending update.
+func TestDiffLinesNameTheNewerSide(t *testing.T) {
+	r := Row{Rel: ".zshrc", Item: engine.Item{Rel: ".zshrc", Status: engine.Drifted,
+		Current: []byte("mine\n"), Desired: []byte("repo\n")}}
+	lines := diffLines(r)
+	if len(lines) < 2 || lines[0] != "--- home/.zshrc  (drifted: $HOME has the newer edit)" || lines[1] != "+++ repo/.zshrc" {
+		t.Fatalf("headers: %q", lines)
 	}
 }
