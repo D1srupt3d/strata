@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"strata/internal/config"
 	"strata/internal/fsutil"
@@ -686,5 +687,62 @@ func TestPruneDeletesOnlySelectedFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".gitconfig")); err != nil {
 		t.Fatal(".gitconfig deleted although it wasn't selected")
+	}
+}
+
+// Plan records each side's modified time so diff can show which copy was
+// touched more recently. A side that doesn't exist has the zero time.
+func TestPlanRecordsModTimes(t *testing.T) {
+	cfg, home := fixture(t)
+	src := filepath.Join(cfg.RepoDir, "base", ".zshrc")
+	repoTime := time.Date(2026, 9, 27, 9, 10, 0, 0, time.Local)
+	homeTime := time.Date(2026, 9, 28, 14, 2, 0, 0, time.Local)
+	if err := os.Chtimes(src, repoTime, repoTime); err != nil {
+		t.Fatal(err)
+	}
+
+	items := plan(t, cfg, home, state.State{Files: map[string]string{}})
+	if it := items[".zshrc"]; !it.SourceModTime.Equal(repoTime) || !it.CurrentModTime.IsZero() {
+		t.Fatalf("create: source %v, current %v; want %v and zero", it.SourceModTime, it.CurrentModTime, repoTime)
+	}
+
+	mustWrite(t, filepath.Join(home, ".zshrc"), "home edit\n")
+	if err := os.Chtimes(filepath.Join(home, ".zshrc"), homeTime, homeTime); err != nil {
+		t.Fatal(err)
+	}
+	if it := plan(t, cfg, home, state.State{Files: map[string]string{}})[".zshrc"]; !it.CurrentModTime.Equal(homeTime) {
+		t.Fatalf("current mod time = %v, want %v", it.CurrentModTime, homeTime)
+	}
+
+	// Removed: no layer provides it, so only the $HOME side has a time.
+	mustRemove(t, src)
+	st := state.State{Files: map[string]string{".zshrc": fsutil.Hash([]byte("base zshrc\n"))}}
+	if it := plan(t, cfg, home, st)[".zshrc"]; !it.SourceModTime.IsZero() || !it.CurrentModTime.Equal(homeTime) {
+		t.Fatalf("removed: source %v, current %v", it.SourceModTime, it.CurrentModTime)
+	}
+}
+
+func TestDiffHeaders(t *testing.T) {
+	repoTime := time.Date(2026, 9, 27, 9, 10, 0, 0, time.Local)
+	homeTime := time.Date(2026, 9, 28, 14, 2, 0, 0, time.Local)
+	both := func(st FileStatus) Item {
+		return Item{Rel: ".zshrc", Status: st, SourceModTime: repoTime, CurrentModTime: homeTime}
+	}
+	cases := []struct {
+		it       Item
+		from, to string
+	}{
+		{both(Drifted), "home/.zshrc  2026-09-28 14:02  (drifted: $HOME has the newer edit)", "repo/.zshrc  2026-09-27 09:10"},
+		{both(Update), "home/.zshrc  2026-09-28 14:02  (update: the repo has the newer edit)", "repo/.zshrc  2026-09-27 09:10"},
+		{both(Conflict), "home/.zshrc  2026-09-28 14:02  (conflict: both changed, the times show which is more recent)", "repo/.zshrc  2026-09-27 09:10"},
+		{both(Unmanaged), "home/.zshrc  2026-09-28 14:02  (unmanaged)", "repo/.zshrc  2026-09-27 09:10"},
+		{Item{Rel: ".zshrc", Status: Create, SourceModTime: repoTime}, "home/.zshrc  (create)", "repo/.zshrc  2026-09-27 09:10"},
+		{Item{Rel: ".zshrc", Status: Removed, CurrentModTime: homeTime}, "home/.zshrc  2026-09-28 14:02  (removed)", "repo/.zshrc"},
+	}
+	for _, c := range cases {
+		from, to := DiffHeaders(c.it)
+		if from != c.from || to != c.to {
+			t.Errorf("%v:\n got  %q / %q\n want %q / %q", c.it.Status, from, to, c.from, c.to)
+		}
 	}
 }

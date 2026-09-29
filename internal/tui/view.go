@@ -365,11 +365,12 @@ func (m Model) currentRow() Row {
 }
 
 func diffLines(r Row) []string {
+	from, to := engine.DiffHeaders(r.Item)
 	text, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        difflib.SplitLines(string(r.Item.Current)),
 		B:        difflib.SplitLines(string(r.Item.Desired)),
-		FromFile: "home/" + r.Rel,
-		ToFile:   "repo/" + r.Rel,
+		FromFile: from,
+		ToFile:   to,
 		Context:  3,
 	})
 	return strings.Split(strings.TrimRight(text, "\n"), "\n")

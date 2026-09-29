@@ -163,6 +163,8 @@ strata apply --force       # …or discard it and take the repo's version
 
 `conflict` works the same way: it means the repo *also* changed (say, after a `git pull`). Check `strata diff`, then pick a side.
 
+Each `strata diff` header shows that copy's last-modified time, and the `home/` header says which copy has the newer edit: `drifted` means `$HOME`, `update` means the repo. That answer comes from strata's hashes, so it's reliable. For a `conflict`, compare the times, but remember that `git pull` stamps a repo file with the time of the pull, not the time of the edit.
+
 ### Stop managing a file
 
 ```sh
