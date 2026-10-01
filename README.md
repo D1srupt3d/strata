@@ -363,6 +363,8 @@ Bare `strata` opens a full-screen viewer that never changes anything. Its three 
 
 Keys: `←` `→` or `1`-`3` switch tabs · `↑` `↓` move · `enter` details · `d` full diff · `esc` close · `q` quit.
 
+On the Files tab, `a` shows only files that need attention and `/` searches by path (`enter` keeps the search, `esc` clears the filters).
+
 ## Security note
 
 - **Releases are signed.** CI signs `checksums.txt` with a dedicated SSH key that only `v*` tag runs can use, and `strata upgrade` and `get.sh` verify it against the key built into strata (fingerprint `SHA256:nMQXiQxd18neATjd15cvS8DQ5ihMQXbrgBa6xLKedNY`). Every release also has GitHub build provenance: `gh attestation verify <file> --repo D1srupt3d/strata`.
