@@ -106,6 +106,13 @@ func (m Model) tabsView() string {
 	}
 	left := " " + strings.Join(parts, " ")
 	right := lipgloss.NewStyle().Foreground(cFaint).Render("read-only · later layer wins whole file") + " "
+	if m.note != "" {
+		fg := cGreen
+		if m.noteErr {
+			fg = cRed
+		}
+		right = lipgloss.NewStyle().Foreground(fg).Render(trunc(m.note, max(m.w-40, 10))) + " "
+	}
 	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
@@ -123,11 +130,13 @@ func (m Model) footerView() string {
 				keyHints([2]string{"/", "search"}, [2]string{"a", "attention"}, [2]string{"esc", "clear"})+" ")
 		}
 	}
-	pairs := [][2]string{{"←→ 1-3", "tabs"}, {"↑↓", "move"},
-		{"enter", "detail"}, {"esc", "close"}, {"q", "quit"}}
+	pairs := [][2]string{{"←→ 1-3", "tabs"}, {"↑↓", "move"}, {"enter", "detail"}}
 	if m.tab == 1 && !m.open {
-		pairs = append(pairs, [2]string{"/", "search"}, [2]string{"a", "attention"})
+		pairs = append(pairs, [2]string{"d", "diff"}, [2]string{"/", "search"}, [2]string{"a", "attention"})
+	} else {
+		pairs = append(pairs, [2]string{"esc", "close"})
 	}
+	pairs = append(pairs, [2]string{"r", "reload"}, [2]string{"q", "quit"})
 	return chromeLine(m.w, " "+keyHints(pairs...), "")
 }
 
@@ -309,8 +318,15 @@ func (m Model) filesView(bodyH int) string {
 				}
 			}
 		}
-		if r.Resolved {
-			g, fg, bg := statusGlyph(r.Status)
+		var g string
+		var fg, bg color.Color
+		switch {
+		case r.HookPending && (!r.Resolved || r.Status == engine.Clean):
+			g, fg, bg = hookGlyph()
+		case r.Resolved:
+			g, fg, bg = statusGlyph(r.Status)
+		}
+		if g != "" {
 			b := lipgloss.NewStyle().Foreground(fg).Background(bg).Render(" " + g + " ")
 			pad := statusW - lipgloss.Width(g) - 2
 			if pad < 0 {
@@ -502,6 +518,9 @@ func (m Model) overlayView(bodyH int) string {
 	}
 	b = append(b, muted.Render(padr("PERMS", 18)+padr("HOOK", 28)+"LAST APPLIED"))
 	b = append(b, body.Render(padr(r.Perm, 18)+padr(trunc(hook, 26), 28)+last))
+	if r.HookPending {
+		b = append(b, "", faint.Render("hook pending: apply retries it (it failed or was interrupted)"))
+	}
 
 	if r.Resolved && r.Status != engine.Clean && r.Status != engine.Create {
 		b = append(b, "", faint.Render(driftLabel(r.Status)))
@@ -581,24 +600,14 @@ func (m Model) noteFor(r Row) string {
 func (m Model) diffView(bodyH int) string {
 	r := m.currentRow()
 	lines := diffLines(r)
-	area := bodyH - 2
-	if area < 1 {
-		area = 1
-	}
-	maxOff := len(lines) - area
-	if maxOff < 0 {
-		maxOff = 0
-	}
-	off := m.diffOff
-	if off > maxOff {
-		off = maxOff
-	}
+	area := m.diffPage()
+	off := min(m.diffOff, m.diffMaxOff()) // a resize can shrink the bottom
 	end := off + area
 	if end > len(lines) {
 		end = len(lines)
 	}
 	out := []string{lipgloss.NewStyle().Foreground(cMuted).Render(
-		fmt.Sprintf(" diff - %s · ↑↓ scroll · esc back (%d/%d)", r.Rel, end, len(lines)))}
+		fmt.Sprintf(" diff - %s · ↑↓ j/k scroll · pgup/pgdn page · g/G top/bottom · esc back (%d/%d)", r.Rel, end, len(lines)))}
 	for _, l := range lines[off:end] {
 		out = append(out, " "+colorDiffLine(trunc(l, m.w-2)))
 	}

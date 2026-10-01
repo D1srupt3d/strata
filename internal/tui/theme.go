@@ -65,6 +65,11 @@ func statusGlyph(st engine.FileStatus) (string, color.Color, color.Color) {
 	}
 }
 
+// hookGlyph marks a file whose only problem is a pending hook.
+func hookGlyph() (string, color.Color, color.Color) {
+	return "⚙ hook", cYellow, cBgYellow
+}
+
 func (s *Snapshot) layerColor(name string) (color.Color, color.Color) {
 	switch s.Kind[name] {
 	case "base":

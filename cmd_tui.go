@@ -20,29 +20,36 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if !term.IsTerminal(int(os.Stdout.Fd())) {
 		return fmt.Errorf("the TUI needs an interactive terminal (use 'strata status' in scripts)")
 	}
-	p, err := resolvePaths()
+	snap, err := loadSnapshot()
 	if err != nil {
 		return err
+	}
+	return tui.Run(snap, loadSnapshot)
+}
+
+// loadSnapshot reads config and state from disk and builds the TUI's view
+// of them. It runs at launch and again on each reload (r), so a reload sees
+// exactly what a fresh launch would.
+func loadSnapshot() (*tui.Snapshot, error) {
+	p, err := resolvePaths()
+	if err != nil {
+		return nil, err
 	}
 	mc, err := config.LoadMachineConfig(p.Machine)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rc, err := config.LoadRepoConfig(mc.Repo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	st, err := state.Load(p.State)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	host, err := os.Hostname()
 	if err != nil {
 		host = "this machine"
 	}
-	snap, err := tui.Build(rc, mc, p.Home, st, runtime.GOOS, layers.ReadOSRelease(), host)
-	if err != nil {
-		return err
-	}
-	return tui.Run(snap)
+	return tui.Build(rc, mc, p.Home, st, runtime.GOOS, layers.ReadOSRelease(), host)
 }

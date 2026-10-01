@@ -19,12 +19,25 @@ type Model struct {
 	diff    bool // full-diff view inside the drilldown
 	diffOff int
 	w, h    int
+	// diffFromList: the diff was opened straight from the list (d), so esc
+	// goes back there rather than to the drilldown.
+	diffFromList bool
 
 	// Files-tab filters. While typing, every key edits query instead of
 	// acting as a shortcut, so searching for "q" doesn't quit.
 	query     string
 	typing    bool
 	attention bool // hide clean files and files this machine doesn't get
+
+	reload  func() (*Snapshot, error) // `r`: rebuild from disk; nil disables it
+	note    string                    // "↻ reloaded" or the reload error, until the next key
+	noteErr bool
+}
+
+// reloadMsg carries a reload's result back into Update.
+type reloadMsg struct {
+	snap *Snapshot
+	err  error
 }
 
 func New(s *Snapshot) Model {
@@ -37,7 +50,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+	case reloadMsg:
+		if msg.err != nil {
+			m.note, m.noteErr = "reload failed: "+msg.err.Error(), true
+			return m, nil
+		}
+		rel := ""
+		if vis := m.visible(); m.sel < len(vis) {
+			rel = vis[m.sel].Rel
+		}
+		m.snap = msg.snap
+		m.note, m.noteErr = "↻ reloaded", false
+		// Keep the same file selected: rows shift when files come or go.
+		for i, r := range m.visible() {
+			if r.Rel == rel {
+				m.sel = i
+			}
+		}
+		m.clampSel()
+		if len(m.visible()) == 0 {
+			m.open, m.diff = false, false
+		}
 	case tea.KeyPressMsg:
+		m.note = ""
 		if m.typing {
 			switch msg.String() {
 			case "ctrl+c":
@@ -57,13 +92,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.clampSel()
 			return m, nil
 		}
-		switch msg.String() {
+		k := msg.String()
+		switch k { // vim-style aliases
+		case "j":
+			k = "down"
+		case "k":
+			k = "up"
+		}
+		switch k {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "esc":
 			switch {
 			case m.diff:
 				m.diff, m.diffOff = false, 0
+				if m.diffFromList {
+					m.open, m.diffFromList = false, false
+				}
 			case m.open:
 				m.open = false
 			case m.tab == 1:
@@ -91,13 +136,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down":
 			switch {
 			case m.diff:
-				m.diffOff++ // clamped against content length in View
+				m.diffOff = min(m.diffOff+1, m.diffMaxOff())
 			case m.tab == 1 && !m.open && m.sel < len(m.visible())-1:
 				m.sel++
 			}
 		case "enter":
 			if m.tab == 1 && len(m.visible()) > 0 {
 				m.open = true
+			}
+		case "r":
+			if reload := m.reload; reload != nil {
+				return m, func() tea.Msg {
+					s, err := reload()
+					return reloadMsg{s, err}
+				}
 			}
 		case "/":
 			if m.tab == 1 && !m.open {
@@ -108,10 +160,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.attention = !m.attention
 				m.clampSel()
 			}
-		case "d":
-			if m.open && !m.diff {
-				m.diff = true
+		case "pgdown":
+			if m.diff {
+				m.diffOff = min(m.diffOff+m.diffPage(), m.diffMaxOff())
+			}
+		case "pgup":
+			if m.diff {
+				m.diffOff = max(m.diffOff-m.diffPage(), 0)
+			}
+		case "g":
+			if m.diff {
 				m.diffOff = 0
+			}
+		case "G":
+			if m.diff {
+				m.diffOff = m.diffMaxOff()
+			}
+		case "d":
+			switch {
+			case m.open && !m.diff:
+				m.diff, m.diffOff, m.diffFromList = true, 0, false
+			case m.tab == 1 && !m.open && len(m.visible()) > 0:
+				m.open, m.diff, m.diffOff, m.diffFromList = true, true, 0, true
 			}
 		}
 	}
@@ -123,7 +193,7 @@ func (m Model) visible() []Row {
 	q := strings.ToLower(m.query)
 	var out []Row
 	for _, r := range m.snap.Rows {
-		if m.attention && (!r.Resolved || r.Status == engine.Clean) {
+		if m.attention && !r.HookPending && (!r.Resolved || r.Status == engine.Clean) {
 			continue
 		}
 		if !strings.Contains(strings.ToLower(r.Rel), q) {
@@ -134,14 +204,29 @@ func (m Model) visible() []Row {
 	return out
 }
 
+// diffPage is how many diff lines fit on screen (diffView's body less its
+// header line).
+func (m Model) diffPage() int {
+	return max(max(m.h-3, 4)-2, 1)
+}
+
+// diffMaxOff is the last scroll offset that still fills the diff view, so
+// scrolling stops at the bottom instead of counting past it.
+func (m Model) diffMaxOff() int {
+	return max(len(diffLines(m.currentRow()))-m.diffPage(), 0)
+}
+
 // clampSel keeps the selection inside a list a filter just narrowed.
 func (m *Model) clampSel() {
 	m.sel = max(min(m.sel, len(m.visible())-1), 0)
 }
 
-// Run launches the TUI in the alternate screen (declared in View).
-func Run(s *Snapshot) error {
-	p := tea.NewProgram(New(s))
+// Run launches the TUI in the alternate screen (declared in View). reload
+// rebuilds the snapshot from disk when the user presses r.
+func Run(s *Snapshot, reload func() (*Snapshot, error)) error {
+	m := New(s)
+	m.reload = reload
+	p := tea.NewProgram(m)
 	_, err := p.Run()
 	return err
 }
