@@ -26,6 +26,14 @@ func TestDemoRender(t *testing.T) {
 		m, _ = m.Update(key(k))
 	}
 
+	for _, k := range []string{"down", "down", "d"} { // .gitconfig's diff, straight from the list
+		m, _ = m.Update(key(k))
+	}
+	t.Log("DIFF FROM LIST:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
+	m, _ = m.Update(key("esc"))
+	m, _ = m.Update(key("up"))
+	m, _ = m.Update(key("up"))
+
 	m, _ = m.Update(key("enter"))
 	t.Log("DRILLDOWN:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 

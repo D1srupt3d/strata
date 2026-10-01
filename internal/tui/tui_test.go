@@ -491,9 +491,9 @@ func TestReloadFailureKeepsOldData(t *testing.T) {
 func TestRWhileTypingIsText(t *testing.T) {
 	m0 := New(build(t))
 	m0.reload = func() (*Snapshot, error) { t.Fatal("r while typing reloaded"); return nil, nil }
-	m, cmd := tea.Model(m0).Update(key("2"))
+	m, _ := tea.Model(m0).Update(key("2"))
 	m = press(m, "/")
-	m, cmd = m.Update(key("r"))
+	m, cmd := m.Update(key("r"))
 	if cmd != nil || m.(Model).query != "r" {
 		t.Fatalf("query = %q, cmd = %v; want r typed, no reload", m.(Model).query, cmd)
 	}
