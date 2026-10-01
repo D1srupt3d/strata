@@ -361,9 +361,11 @@ Details worth knowing:
 
 Bare `strata` opens a full-screen viewer that never changes anything. Its three tabs show which layer each file comes from here and on mac/linux/windows, each file's status, and where every variable, hook and permission comes from. Press `enter` on a file for its full story and a diff.
 
-Keys: `←` `→` or `1`-`3` switch tabs · `↑` `↓` move · `enter` details · `d` full diff · `esc` close · `q` quit.
+Keys: `←` `→` or `1`-`3` switch tabs · `↑` `↓` (or `j` `k`) move · `enter` details · `d` full diff · `r` reload · `esc` close · `q` quit.
 
-On the Files tab, `a` shows only files that need attention and `/` searches by path (`enter` keeps the search, `esc` clears the filters).
+On the Files tab, `a` shows only files that need attention (the same list `strata status` prints, including failed hooks and removed files) and `/` searches by path (`enter` keeps the search, `esc` clears the filters). `d` opens a file's diff straight from the list; in a diff, `pgup` `pgdn` page and `g` `G` jump to the top and bottom.
+
+The TUI reads everything once at launch. After an `apply` or `git pull` elsewhere, press `r` to reload; if the reload fails (say, a half-edited `dots.toml`), it keeps showing the old data and the error.
 
 ## Security note
 
