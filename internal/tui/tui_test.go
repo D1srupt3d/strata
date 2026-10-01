@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -411,5 +412,88 @@ func TestAttentionMatchesStatusForHooksAndRemoved(t *testing.T) {
 	m = press(m, "/", "z", "s", "h", "enter", "enter")
 	if v := m.View().Content; !strings.Contains(v, "pending: apply retries it") {
 		t.Errorf("drilldown should say the hook is pending:\n%s", v)
+	}
+}
+
+// pressR presses r and feeds the reload's result back, as bubbletea would.
+func pressR(t *testing.T, m tea.Model) tea.Model {
+	t.Helper()
+	m, cmd := m.Update(key("r"))
+	if cmd == nil {
+		t.Fatal("r returned no reload command")
+	}
+	m, _ = m.Update(cmd())
+	return m
+}
+
+func TestReloadKeepsSelectionAndFilters(t *testing.T) {
+	rc, mc, home := fixture(t)
+	s1, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// After the reload a new file sorts first, shifting every row down one.
+	if err := os.WriteFile(filepath.Join(mc.Repo, "base", ".aaa"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m0 := New(s1)
+	m0.reload = func() (*Snapshot, error) { return s2, nil }
+	var m tea.Model = m0
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
+	m = press(m, "2", "a")
+	for m.(Model).currentRow().Rel != ".ssh/config" {
+		m = press(m, "down")
+	}
+
+	m = pressR(t, m)
+	mm := m.(Model)
+	if mm.snap != s2 {
+		t.Fatal("reload did not swap in the new snapshot")
+	}
+	if !mm.attention {
+		t.Error("reload turned the attention filter off")
+	}
+	if r := mm.currentRow(); r.Rel != ".ssh/config" {
+		t.Errorf("selection after reload = %q, want .ssh/config (found by path, not row number)", r.Rel)
+	}
+	if !slices.Contains(rels(m), ".aaa") {
+		t.Errorf("new file missing after reload: %v", rels(m))
+	}
+	if v := m.View().Content; !strings.Contains(v, "reloaded") {
+		t.Errorf("view should confirm the reload:\n%s", v)
+	}
+	if v := press(m, "down").View().Content; strings.Contains(v, "reloaded") {
+		t.Error("reload note should clear on the next key")
+	}
+}
+
+// A dots.toml mid-edit must not kill the TUI: keep the old data, say why.
+func TestReloadFailureKeepsOldData(t *testing.T) {
+	s := build(t)
+	m0 := New(s)
+	m0.reload = func() (*Snapshot, error) { return nil, errors.New("dots.toml: boom") }
+	var m tea.Model = m0
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
+	m = pressR(t, m)
+	if m.(Model).snap != s {
+		t.Fatal("failed reload replaced the snapshot")
+	}
+	if v := m.View().Content; !strings.Contains(v, "reload failed: dots.toml: boom") {
+		t.Errorf("view should show the reload error:\n%s", v)
+	}
+}
+
+func TestRWhileTypingIsText(t *testing.T) {
+	m0 := New(build(t))
+	m0.reload = func() (*Snapshot, error) { t.Fatal("r while typing reloaded"); return nil, nil }
+	m, cmd := tea.Model(m0).Update(key("2"))
+	m = press(m, "/")
+	m, cmd = m.Update(key("r"))
+	if cmd != nil || m.(Model).query != "r" {
+		t.Fatalf("query = %q, cmd = %v; want r typed, no reload", m.(Model).query, cmd)
 	}
 }

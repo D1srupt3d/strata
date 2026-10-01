@@ -25,6 +25,16 @@ type Model struct {
 	query     string
 	typing    bool
 	attention bool // hide clean files and files this machine doesn't get
+
+	reload  func() (*Snapshot, error) // `r`: rebuild from disk; nil disables it
+	note    string                    // "↻ reloaded" or the reload error, until the next key
+	noteErr bool
+}
+
+// reloadMsg carries a reload's result back into Update.
+type reloadMsg struct {
+	snap *Snapshot
+	err  error
 }
 
 func New(s *Snapshot) Model {
@@ -37,7 +47,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+	case reloadMsg:
+		if msg.err != nil {
+			m.note, m.noteErr = "reload failed: "+msg.err.Error(), true
+			return m, nil
+		}
+		rel := ""
+		if vis := m.visible(); m.sel < len(vis) {
+			rel = vis[m.sel].Rel
+		}
+		m.snap = msg.snap
+		m.note, m.noteErr = "↻ reloaded", false
+		// Keep the same file selected: rows shift when files come or go.
+		for i, r := range m.visible() {
+			if r.Rel == rel {
+				m.sel = i
+			}
+		}
+		m.clampSel()
+		if len(m.visible()) == 0 {
+			m.open, m.diff = false, false
+		}
 	case tea.KeyPressMsg:
+		m.note = ""
 		if m.typing {
 			switch msg.String() {
 			case "ctrl+c":
@@ -99,6 +131,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.tab == 1 && len(m.visible()) > 0 {
 				m.open = true
 			}
+		case "r":
+			if reload := m.reload; reload != nil {
+				return m, func() tea.Msg {
+					s, err := reload()
+					return reloadMsg{s, err}
+				}
+			}
 		case "/":
 			if m.tab == 1 && !m.open {
 				m.typing = true
@@ -139,9 +178,12 @@ func (m *Model) clampSel() {
 	m.sel = max(min(m.sel, len(m.visible())-1), 0)
 }
 
-// Run launches the TUI in the alternate screen (declared in View).
-func Run(s *Snapshot) error {
-	p := tea.NewProgram(New(s))
+// Run launches the TUI in the alternate screen (declared in View). reload
+// rebuilds the snapshot from disk when the user presses r.
+func Run(s *Snapshot, reload func() (*Snapshot, error)) error {
+	m := New(s)
+	m.reload = reload
+	p := tea.NewProgram(m)
 	_, err := p.Run()
 	return err
 }

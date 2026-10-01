@@ -106,6 +106,13 @@ func (m Model) tabsView() string {
 	}
 	left := " " + strings.Join(parts, " ")
 	right := lipgloss.NewStyle().Foreground(cFaint).Render("read-only · later layer wins whole file") + " "
+	if m.note != "" {
+		fg := cGreen
+		if m.noteErr {
+			fg = cRed
+		}
+		right = lipgloss.NewStyle().Foreground(fg).Render(trunc(m.note, max(m.w-40, 10))) + " "
+	}
 	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
