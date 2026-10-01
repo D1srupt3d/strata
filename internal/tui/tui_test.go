@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -187,9 +189,9 @@ func TestVarsTabShowsLayerVarsSource(t *testing.T) {
 
 func key(k string) tea.KeyPressMsg {
 	switch k {
-	case "up", "down", "left", "right", "enter", "esc":
+	case "up", "down", "left", "right", "enter", "esc", "backspace":
 		codes := map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft,
-			"right": tea.KeyRight, "enter": tea.KeyEnter, "esc": tea.KeyEscape}
+			"right": tea.KeyRight, "enter": tea.KeyEnter, "esc": tea.KeyEscape, "backspace": tea.KeyBackspace}
 		return tea.KeyPressMsg{Code: codes[k]}
 	}
 	return tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
@@ -239,5 +241,125 @@ func TestDiffLinesNameTheNewerSide(t *testing.T) {
 	lines := diffLines(r)
 	if len(lines) < 2 || lines[0] != "--- home/.zshrc  (drifted: $HOME has the newer edit)" || lines[1] != "+++ repo/.zshrc" {
 		t.Fatalf("headers: %q", lines)
+	}
+}
+
+// press feeds keys to the model in order; "/ssh" is typed as "/", "s", "s", "h".
+func press(m tea.Model, keys ...string) tea.Model {
+	for _, k := range keys {
+		m, _ = m.Update(key(k))
+	}
+	return m
+}
+
+func rels(m tea.Model) []string {
+	var out []string
+	for _, r := range m.(Model).visible() {
+		out = append(out, r.Rel)
+	}
+	return out
+}
+
+// filterFixture is the usual fixture with .zshrc already in $HOME, so one
+// row is clean and the attention filter has something to hide.
+func filterFixture(t *testing.T) tea.Model {
+	t.Helper()
+	rc, mc, home := fixture(t)
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export EDITOR=nvim\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "mbp-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m tea.Model = New(s)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
+	return press(m, "2")
+}
+
+func TestAttentionFilterHidesCleanAndUnresolved(t *testing.T) {
+	m := filterFixture(t)
+	all := rels(m)
+	if !slices.Contains(all, ".zshrc") || !slices.Contains(all, ".wslconfig") {
+		t.Fatalf("unfiltered rows should include clean .zshrc and windows-only .wslconfig: %v", all)
+	}
+	m = press(m, "a")
+	got := rels(m)
+	if slices.Contains(got, ".zshrc") || slices.Contains(got, ".wslconfig") {
+		t.Errorf("attention filter kept a clean or unresolved row: %v", got)
+	}
+	if !slices.Contains(got, ".ssh/config") {
+		t.Errorf("attention filter dropped .ssh/config (create): %v", got)
+	}
+	if v := m.View().Content; !strings.Contains(v, "needs attention") || !strings.Contains(v, fmt.Sprintf("%d of %d files", len(got), len(all))) {
+		t.Errorf("footer should name the filter and count:\n%s", v)
+	}
+	if got := rels(press(m, "a")); len(got) != len(all) {
+		t.Errorf("second a should turn the filter off: %v", got)
+	}
+}
+
+// While typing, every key is text: q must not quit, d must not open a diff.
+func TestSearchTypesKeysAndOpensTheRightRow(t *testing.T) {
+	m := filterFixture(t)
+	m = press(m, "/", "s", "s", "h")
+	if got := rels(m); !slices.Equal(got, []string{".ssh/config"}) {
+		t.Fatalf("/ssh = %v, want [.ssh/config]", got)
+	}
+	m2, cmd := m.Update(key("q"))
+	if cmd != nil {
+		t.Fatal("q while typing returned a command (quit)")
+	}
+	if q := m2.(Model).query; q != "sshq" {
+		t.Fatalf("query = %q, want sshq", q)
+	}
+	m = press(m, "enter", "enter") // stop typing, then open the drilldown
+	if !m.(Model).open || m.(Model).currentRow().Rel != ".ssh/config" {
+		t.Fatalf("drilldown opened %q, want .ssh/config", m.(Model).currentRow().Rel)
+	}
+}
+
+func TestSearchIgnoresCaseAndBackspaceWidens(t *testing.T) {
+	m := press(filterFixture(t), "/", "Z", "S", "H", "x")
+	if got := rels(m); len(got) != 0 {
+		t.Fatalf("/ZSHx should match nothing: %v", got)
+	}
+	if v := m.View().Content; !strings.Contains(v, "no files match") {
+		t.Errorf("empty result should say so:\n%s", v)
+	}
+	m = press(m, "enter", "enter") // enter on an empty list must not open (or panic)
+	if m.(Model).open {
+		t.Fatal("drilldown opened on an empty list")
+	}
+	m = press(m, "/", "backspace")
+	if got := rels(m); !slices.Equal(got, []string{".zshrc"}) {
+		t.Fatalf("/ZSH = %v, want [.zshrc]", got)
+	}
+}
+
+func TestEscClearsFiltersAndEmptyMessage(t *testing.T) {
+	m := press(filterFixture(t), "a", "/", "z", "s", "h", "enter")
+	if got := rels(m); len(got) != 0 {
+		t.Fatalf("clean .zshrc under attention filter = %v, want none", got)
+	}
+	if v := m.View().Content; !strings.Contains(v, `nothing matching "zsh" needs attention`) {
+		t.Errorf("empty list should name both filters:\n%s", v)
+	}
+	m = press(m, "esc")
+	if mm := m.(Model); mm.query != "" || mm.attention {
+		t.Fatalf("esc left filters on: query=%q attention=%v", mm.query, mm.attention)
+	}
+}
+
+// The selection points into the filtered list: narrowing it must not leave
+// sel past the end.
+func TestFilterClampsSelection(t *testing.T) {
+	m := filterFixture(t)
+	for range len(rels(m)) {
+		m = press(m, "down")
+	}
+	m = press(m, "/", "s", "s", "h", "enter", "enter")
+	if r := m.(Model).currentRow(); r.Rel != ".ssh/config" {
+		t.Fatalf("opened %q after narrowing, want .ssh/config", r.Rel)
 	}
 }

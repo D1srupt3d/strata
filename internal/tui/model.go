@@ -1,7 +1,11 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+
+	"strata/internal/engine"
 )
 
 // Model is the bubbletea model. All data is computed once at launch (in
@@ -10,11 +14,17 @@ import (
 type Model struct {
 	snap    *Snapshot
 	tab     int // 0 layers, 1 files, 2 vars & rules
-	sel     int // files-tab selection; persists across tab switches
+	sel     int // index into visible(); persists across tab switches
 	open    bool
 	diff    bool // full-diff view inside the drilldown
 	diffOff int
 	w, h    int
+
+	// Files-tab filters. While typing, every key edits query instead of
+	// acting as a shortcut, so searching for "q" doesn't quit.
+	query     string
+	typing    bool
+	attention bool // hide clean files and files this machine doesn't get
 }
 
 func New(s *Snapshot) Model {
@@ -28,14 +38,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 	case tea.KeyPressMsg:
+		if m.typing {
+			switch msg.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "enter":
+				m.typing = false
+			case "esc":
+				m.typing, m.query = false, ""
+			case "backspace":
+				r := []rune(m.query)
+				if len(r) > 0 {
+					m.query = string(r[:len(r)-1])
+				}
+			default:
+				m.query += msg.Text
+			}
+			m.clampSel()
+			return m, nil
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "esc":
-			if m.diff {
+			switch {
+			case m.diff:
 				m.diff, m.diffOff = false, 0
-			} else {
+			case m.open:
 				m.open = false
+			case m.tab == 1:
+				m.query, m.attention = "", false
+				m.clampSel()
 			}
 		case "left":
 			m.tab = (m.tab + 2) % 3
@@ -59,12 +92,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch {
 			case m.diff:
 				m.diffOff++ // clamped against content length in View
-			case m.tab == 1 && !m.open && m.sel < len(m.snap.Rows)-1:
+			case m.tab == 1 && !m.open && m.sel < len(m.visible())-1:
 				m.sel++
 			}
 		case "enter":
-			if m.tab == 1 && len(m.snap.Rows) > 0 {
+			if m.tab == 1 && len(m.visible()) > 0 {
 				m.open = true
+			}
+		case "/":
+			if m.tab == 1 && !m.open {
+				m.typing = true
+			}
+		case "a":
+			if m.tab == 1 && !m.open {
+				m.attention = !m.attention
+				m.clampSel()
 			}
 		case "d":
 			if m.open && !m.diff {
@@ -74,6 +116,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// visible is the Files-tab rows that pass the filters, in snapshot order.
+func (m Model) visible() []Row {
+	q := strings.ToLower(m.query)
+	var out []Row
+	for _, r := range m.snap.Rows {
+		if m.attention && (!r.Resolved || r.Status == engine.Clean) {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(r.Rel), q) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// clampSel keeps the selection inside a list a filter just narrowed.
+func (m *Model) clampSel() {
+	m.sel = max(min(m.sel, len(m.visible())-1), 0)
 }
 
 // Run launches the TUI in the alternate screen (declared in View).

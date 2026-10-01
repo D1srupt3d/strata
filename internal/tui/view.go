@@ -114,10 +114,51 @@ func (m Model) tabsView() string {
 }
 
 func (m Model) footerView() string {
-	hints := keyHints(
-		[2]string{"←→ 1-3", "tabs"}, [2]string{"↑↓", "move"},
-		[2]string{"enter", "detail"}, [2]string{"esc", "close"}, [2]string{"q", "quit"})
-	return chromeLine(m.w, " "+hints, "")
+	if m.tab == 1 && !m.open {
+		switch {
+		case m.typing:
+			return chromeLine(m.w, " "+m.filterText(), keyHints([2]string{"enter", "keep"}, [2]string{"esc", "clear"})+" ")
+		case m.query != "" || m.attention:
+			return chromeLine(m.w, " "+m.filterText(),
+				keyHints([2]string{"/", "search"}, [2]string{"a", "attention"}, [2]string{"esc", "clear"})+" ")
+		}
+	}
+	pairs := [][2]string{{"←→ 1-3", "tabs"}, {"↑↓", "move"},
+		{"enter", "detail"}, {"esc", "close"}, {"q", "quit"}}
+	if m.tab == 1 && !m.open {
+		pairs = append(pairs, [2]string{"/", "search"}, [2]string{"a", "attention"})
+	}
+	return chromeLine(m.w, " "+keyHints(pairs...), "")
+}
+
+// filterText is the footer's "/ssh · needs attention · 2 of 9 files".
+func (m Model) filterText() string {
+	var parts []string
+	if m.typing || m.query != "" {
+		q := "/" + m.query
+		if m.typing {
+			q += "▏"
+		}
+		parts = append(parts, q)
+	}
+	if m.attention {
+		parts = append(parts, "needs attention")
+	}
+	parts = append(parts, fmt.Sprintf("%d of %d files", len(m.visible()), len(m.snap.Rows)))
+	return lipgloss.NewStyle().Foreground(cLavender).Background(cBgChrome).Render(strings.Join(parts, " · "))
+}
+
+// emptyText explains an empty Files list, so a filter never looks like a bug.
+func (m Model) emptyText() string {
+	switch {
+	case m.attention && m.query != "":
+		return fmt.Sprintf("nothing matching %q needs attention", m.query)
+	case m.attention:
+		return "nothing needs attention"
+	case m.query != "":
+		return fmt.Sprintf("no files match %q", m.query)
+	}
+	return "no files in the repo"
 }
 
 // ── Layers tab ───────────────────────────────────────────────────────
@@ -214,17 +255,21 @@ func (m Model) filesView(bodyH int) string {
 	if rowsArea < 1 {
 		rowsArea = 1
 	}
+	vis := m.visible()
 	off := 0
-	if len(s.Rows) > rowsArea && m.sel >= rowsArea {
+	if len(vis) > rowsArea && m.sel >= rowsArea {
 		off = m.sel - rowsArea + 1
 	}
 	end := off + rowsArea
-	if end > len(s.Rows) {
-		end = len(s.Rows)
+	if end > len(vis) {
+		end = len(vis)
+	}
+	if len(vis) == 0 {
+		rows = append(rows, " "+lipgloss.NewStyle().Foreground(cMuted).Render(m.emptyText()))
 	}
 
 	for i := off; i < end; i++ {
-		r := s.Rows[i]
+		r := vis[i]
 		selRow := i == m.sel
 		rowSt := func(fg color.Color) lipgloss.Style {
 			st := lipgloss.NewStyle().Foreground(fg)
@@ -357,11 +402,12 @@ func (m Model) varsView() string {
 // ── Drilldown overlay ────────────────────────────────────────────────
 
 func (m Model) currentRow() Row {
+	rows := m.visible()
 	sel := m.sel
-	if sel >= len(m.snap.Rows) {
-		sel = len(m.snap.Rows) - 1
+	if sel >= len(rows) {
+		sel = len(rows) - 1
 	}
-	return m.snap.Rows[sel]
+	return rows[sel]
 }
 
 func diffLines(r Row) []string {
