@@ -130,11 +130,13 @@ func (m Model) footerView() string {
 				keyHints([2]string{"/", "search"}, [2]string{"a", "attention"}, [2]string{"esc", "clear"})+" ")
 		}
 	}
-	pairs := [][2]string{{"←→ 1-3", "tabs"}, {"↑↓", "move"},
-		{"enter", "detail"}, {"esc", "close"}, {"q", "quit"}}
+	pairs := [][2]string{{"←→ 1-3", "tabs"}, {"↑↓", "move"}, {"enter", "detail"}}
 	if m.tab == 1 && !m.open {
-		pairs = append(pairs, [2]string{"/", "search"}, [2]string{"a", "attention"})
+		pairs = append(pairs, [2]string{"d", "diff"}, [2]string{"/", "search"}, [2]string{"a", "attention"})
+	} else {
+		pairs = append(pairs, [2]string{"esc", "close"})
 	}
+	pairs = append(pairs, [2]string{"r", "reload"}, [2]string{"q", "quit"})
 	return chromeLine(m.w, " "+keyHints(pairs...), "")
 }
 
@@ -598,24 +600,14 @@ func (m Model) noteFor(r Row) string {
 func (m Model) diffView(bodyH int) string {
 	r := m.currentRow()
 	lines := diffLines(r)
-	area := bodyH - 2
-	if area < 1 {
-		area = 1
-	}
-	maxOff := len(lines) - area
-	if maxOff < 0 {
-		maxOff = 0
-	}
-	off := m.diffOff
-	if off > maxOff {
-		off = maxOff
-	}
+	area := m.diffPage()
+	off := min(m.diffOff, m.diffMaxOff()) // a resize can shrink the bottom
 	end := off + area
 	if end > len(lines) {
 		end = len(lines)
 	}
 	out := []string{lipgloss.NewStyle().Foreground(cMuted).Render(
-		fmt.Sprintf(" diff - %s · ↑↓ scroll · esc back (%d/%d)", r.Rel, end, len(lines)))}
+		fmt.Sprintf(" diff - %s · ↑↓ j/k scroll · pgup/pgdn page · g/G top/bottom · esc back (%d/%d)", r.Rel, end, len(lines)))}
 	for _, l := range lines[off:end] {
 		out = append(out, " "+colorDiffLine(trunc(l, m.w-2)))
 	}

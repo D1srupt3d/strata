@@ -191,9 +191,10 @@ func TestVarsTabShowsLayerVarsSource(t *testing.T) {
 
 func key(k string) tea.KeyPressMsg {
 	switch k {
-	case "up", "down", "left", "right", "enter", "esc", "backspace":
+	case "up", "down", "left", "right", "enter", "esc", "backspace", "pgup", "pgdown":
 		codes := map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft,
-			"right": tea.KeyRight, "enter": tea.KeyEnter, "esc": tea.KeyEscape, "backspace": tea.KeyBackspace}
+			"right": tea.KeyRight, "enter": tea.KeyEnter, "esc": tea.KeyEscape, "backspace": tea.KeyBackspace,
+			"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown}
 		return tea.KeyPressMsg{Code: codes[k]}
 	}
 	return tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
@@ -495,5 +496,84 @@ func TestRWhileTypingIsText(t *testing.T) {
 	m, cmd = m.Update(key("r"))
 	if cmd != nil || m.(Model).query != "r" {
 		t.Fatalf("query = %q, cmd = %v; want r typed, no reload", m.(Model).query, cmd)
+	}
+}
+
+// longDiff opens the Files tab on a 60-line file in a short window, so its
+// diff needs several pages.
+func longDiff(t *testing.T) tea.Model {
+	t.Helper()
+	rc, mc, home := fixture(t)
+	var long strings.Builder
+	for i := range 60 {
+		fmt.Fprintf(&long, "line %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(mc.Repo, "base", ".long"), []byte(long.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Build(rc, mc, home, state.State{Files: map[string]string{}}, "darwin", "", "h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m tea.Model = New(s)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	m = press(m, "2", "/", "l", "o", "n", "g", "enter")
+	return m
+}
+
+func TestDiffStraightFromTheList(t *testing.T) {
+	m := press(longDiff(t), "d")
+	if mm := m.(Model); !mm.diff {
+		t.Fatal("d on the list did not open the diff")
+	}
+	if v := m.View().Content; !strings.Contains(v, "diff - .long") {
+		t.Fatalf("diff view missing:\n%s", v)
+	}
+	if mm := press(m, "esc").(Model); mm.open || mm.diff {
+		t.Errorf("esc from a list-opened diff should return to the list: open=%v diff=%v", mm.open, mm.diff)
+	}
+	// Opened from the drilldown, esc goes back to the drilldown as before.
+	if mm := press(longDiff(t), "enter", "d", "esc").(Model); !mm.open || mm.diff {
+		t.Errorf("esc from a drilldown-opened diff: open=%v diff=%v, want the drilldown", mm.open, mm.diff)
+	}
+}
+
+func TestDiffScrollKeys(t *testing.T) {
+	m := press(longDiff(t), "d")
+	maxOff := m.(Model).diffMaxOff()
+	page := m.(Model).diffPage()
+	if maxOff < 2*page {
+		t.Fatalf("fixture too short: maxOff=%d page=%d", maxOff, page)
+	}
+	off := func(m tea.Model) int { return m.(Model).diffOff }
+
+	if got := off(press(m, "j", "j", "k")); got != 1 {
+		t.Errorf("j j k = %d, want 1", got)
+	}
+	if got := off(press(m, "pgdown")); got != page {
+		t.Errorf("pgdown = %d, want %d", got, page)
+	}
+	if got := off(press(m, "pgdown", "pgup")); got != 0 {
+		t.Errorf("pgdown pgup = %d, want 0", got)
+	}
+	if got := off(press(m, "G")); got != maxOff {
+		t.Errorf("G = %d, want %d", got, maxOff)
+	}
+	// Scrolling stops at the bottom: one up after overshooting moves up.
+	if got := off(press(m, "G", "down", "down", "down", "up")); got != maxOff-1 {
+		t.Errorf("G, 3 downs, up = %d, want %d", got, maxOff-1)
+	}
+	if got := off(press(m, "G", "g")); got != 0 {
+		t.Errorf("G g = %d, want 0", got)
+	}
+	if got := off(press(m, "up", "pgup")); got != 0 {
+		t.Errorf("up/pgup at the top = %d, want 0", got)
+	}
+}
+
+func TestJKMoveTheFileList(t *testing.T) {
+	m := press(filterFixture(t), "j", "j", "k")
+	if got := m.(Model).sel; got != 1 {
+		t.Errorf("j j k on the list: sel = %d, want 1", got)
 	}
 }

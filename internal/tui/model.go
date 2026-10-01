@@ -19,6 +19,9 @@ type Model struct {
 	diff    bool // full-diff view inside the drilldown
 	diffOff int
 	w, h    int
+	// diffFromList: the diff was opened straight from the list (d), so esc
+	// goes back there rather than to the drilldown.
+	diffFromList bool
 
 	// Files-tab filters. While typing, every key edits query instead of
 	// acting as a shortcut, so searching for "q" doesn't quit.
@@ -89,13 +92,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.clampSel()
 			return m, nil
 		}
-		switch msg.String() {
+		k := msg.String()
+		switch k { // vim-style aliases
+		case "j":
+			k = "down"
+		case "k":
+			k = "up"
+		}
+		switch k {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "esc":
 			switch {
 			case m.diff:
 				m.diff, m.diffOff = false, 0
+				if m.diffFromList {
+					m.open, m.diffFromList = false, false
+				}
 			case m.open:
 				m.open = false
 			case m.tab == 1:
@@ -123,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down":
 			switch {
 			case m.diff:
-				m.diffOff++ // clamped against content length in View
+				m.diffOff = min(m.diffOff+1, m.diffMaxOff())
 			case m.tab == 1 && !m.open && m.sel < len(m.visible())-1:
 				m.sel++
 			}
@@ -147,10 +160,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.attention = !m.attention
 				m.clampSel()
 			}
-		case "d":
-			if m.open && !m.diff {
-				m.diff = true
+		case "pgdown":
+			if m.diff {
+				m.diffOff = min(m.diffOff+m.diffPage(), m.diffMaxOff())
+			}
+		case "pgup":
+			if m.diff {
+				m.diffOff = max(m.diffOff-m.diffPage(), 0)
+			}
+		case "g":
+			if m.diff {
 				m.diffOff = 0
+			}
+		case "G":
+			if m.diff {
+				m.diffOff = m.diffMaxOff()
+			}
+		case "d":
+			switch {
+			case m.open && !m.diff:
+				m.diff, m.diffOff, m.diffFromList = true, 0, false
+			case m.tab == 1 && !m.open && len(m.visible()) > 0:
+				m.open, m.diff, m.diffOff, m.diffFromList = true, true, 0, true
 			}
 		}
 	}
@@ -171,6 +202,18 @@ func (m Model) visible() []Row {
 		out = append(out, r)
 	}
 	return out
+}
+
+// diffPage is how many diff lines fit on screen (diffView's body less its
+// header line).
+func (m Model) diffPage() int {
+	return max(max(m.h-3, 4)-2, 1)
+}
+
+// diffMaxOff is the last scroll offset that still fills the diff view, so
+// scrolling stops at the bottom instead of counting past it.
+func (m Model) diffMaxOff() int {
+	return max(len(diffLines(m.currentRow()))-m.diffPage(), 0)
 }
 
 // clampSel keeps the selection inside a list a filter just narrowed.
