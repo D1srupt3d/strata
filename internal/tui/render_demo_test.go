@@ -18,6 +18,14 @@ func TestDemoRender(t *testing.T) {
 	m, _ = m.Update(key("2"))
 	t.Log("FILES TAB:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 
+	for _, k := range []string{"a", "/", "s", "s", "h"} {
+		m, _ = m.Update(key(k))
+	}
+	t.Log("FILTERED (a, /ssh):\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
+	for _, k := range []string{"esc", "esc"} { // stop typing, then clear the filters
+		m, _ = m.Update(key(k))
+	}
+
 	m, _ = m.Update(key("enter"))
 	t.Log("DRILLDOWN:\n" + ansiRe.ReplaceAllString(m.View().Content, ""))
 
