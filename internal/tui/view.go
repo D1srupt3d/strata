@@ -309,8 +309,15 @@ func (m Model) filesView(bodyH int) string {
 				}
 			}
 		}
-		if r.Resolved {
-			g, fg, bg := statusGlyph(r.Status)
+		var g string
+		var fg, bg color.Color
+		switch {
+		case r.HookPending && (!r.Resolved || r.Status == engine.Clean):
+			g, fg, bg = hookGlyph()
+		case r.Resolved:
+			g, fg, bg = statusGlyph(r.Status)
+		}
+		if g != "" {
 			b := lipgloss.NewStyle().Foreground(fg).Background(bg).Render(" " + g + " ")
 			pad := statusW - lipgloss.Width(g) - 2
 			if pad < 0 {
@@ -502,6 +509,9 @@ func (m Model) overlayView(bodyH int) string {
 	}
 	b = append(b, muted.Render(padr("PERMS", 18)+padr("HOOK", 28)+"LAST APPLIED"))
 	b = append(b, body.Render(padr(r.Perm, 18)+padr(trunc(hook, 26), 28)+last))
+	if r.HookPending {
+		b = append(b, "", faint.Render("hook pending: apply retries it (it failed or was interrupted)"))
+	}
 
 	if r.Resolved && r.Status != engine.Clean && r.Status != engine.Create {
 		b = append(b, "", faint.Render(driftLabel(r.Status)))

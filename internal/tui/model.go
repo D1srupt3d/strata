@@ -123,7 +123,7 @@ func (m Model) visible() []Row {
 	q := strings.ToLower(m.query)
 	var out []Row
 	for _, r := range m.snap.Rows {
-		if m.attention && (!r.Resolved || r.Status == engine.Clean) {
+		if m.attention && !r.HookPending && (!r.Resolved || r.Status == engine.Clean) {
 			continue
 		}
 		if !strings.Contains(strings.ToLower(r.Rel), q) {

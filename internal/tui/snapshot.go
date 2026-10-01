@@ -33,6 +33,7 @@ type Row struct {
 	Perm            string // "600 (dots.toml)" or "644 (default)"
 	Hook            string // "" if none
 	LastHash        string // short last-applied hash, "" if untracked
+	HookPending     bool   // its hook failed or was interrupted; apply retries it
 }
 
 type LayerFile struct {
@@ -202,10 +203,22 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 		return strings.Join(b, " "), rule, hasRule, nil
 	}
 
-	// Files tab rows: union across all OS resolutions.
+	// Files tab rows: union across all OS resolutions, plus what `strata
+	// status` reports that no layer provides: removed files (from Plan) and
+	// pending hooks still in dots.toml.
 	relSet := map[string]bool{}
 	for _, m := range []map[string]string{resHere, resMac, resLinux, resWin} {
 		for rel := range m {
+			relSet[rel] = true
+		}
+	}
+	for rel := range byRel {
+		relSet[rel] = true
+	}
+	pending := map[string]bool{}
+	for _, rel := range st.PendingHooks {
+		if _, ok := cfg.Hooks[rel]; ok { // hook removed from dots.toml: apply drops it
+			pending[rel] = true
 			relSet[rel] = true
 		}
 	}
@@ -223,6 +236,8 @@ func Build(rc config.RepoConfig, mc config.MachineConfig, home string, st state.
 			Mac:    layerOf(cfg.RepoDir, resMac[rel]),
 			Linux:  layerOf(cfg.RepoDir, resLinux[rel]),
 			Win:    layerOf(cfg.RepoDir, resWin[rel]),
+
+			HookPending: pending[rel],
 		}
 		if it, ok := byRel[rel]; ok {
 			r.Resolved, r.Status, r.Item = true, it.Status, it

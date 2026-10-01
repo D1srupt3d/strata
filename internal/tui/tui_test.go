@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -361,5 +362,54 @@ func TestFilterClampsSelection(t *testing.T) {
 	m = press(m, "/", "s", "s", "h", "enter", "enter")
 	if r := m.(Model).currentRow(); r.Rel != ".ssh/config" {
 		t.Fatalf("opened %q after narrowing, want .ssh/config", r.Rel)
+	}
+}
+
+// `a` must list what `strata status` lists: a clean file whose hook failed,
+// and a file that left every layer. Neither showed in the TUI before.
+func TestAttentionMatchesStatusForHooksAndRemoved(t *testing.T) {
+	rc, mc, home := fixture(t)
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export EDITOR=nvim\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rc.Hooks[".zshrc"] = "source ~/.zshrc"
+	st := state.State{
+		Files:        map[string]string{".old": "deadbeefdeadbeef"},
+		PendingHooks: []string{".zshrc", ".gone"}, // .gone's hook left dots.toml: status ignores it
+	}
+	s, err := Build(rc, mc, home, st, "darwin", "", "mbp-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := rowByRel(t, s, ".zshrc"); !r.HookPending || r.Status != engine.Clean {
+		t.Errorf(".zshrc: HookPending=%v Status=%v, want pending hook on a clean file", r.HookPending, r.Status)
+	}
+	if r := rowByRel(t, s, ".old"); !r.Resolved || r.Status != engine.Removed {
+		t.Errorf(".old: Resolved=%v Status=%v, want a removed row", r.Resolved, r.Status)
+	}
+	for _, r := range s.Rows {
+		if r.Rel == ".gone" {
+			t.Error(".gone: a pending hook no longer in dots.toml must not get a row")
+		}
+	}
+
+	var m tea.Model = New(s)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 40})
+	m = press(m, "2", "a")
+	got := rels(m)
+	if !slices.Contains(got, ".zshrc") || !slices.Contains(got, ".old") {
+		t.Errorf("attention filter = %v, want .zshrc (hook) and .old (removed)", got)
+	}
+	v := ansiRe.ReplaceAllString(m.View().Content, "")
+	if !regexp.MustCompile(`\.zshrc .*⚙ hook`).MatchString(v) {
+		t.Errorf(".zshrc row should show ⚙ hook:\n%s", v)
+	}
+	if !regexp.MustCompile(`\.old .*✕ removed`).MatchString(v) {
+		t.Errorf(".old row should show removed:\n%s", v)
+	}
+
+	m = press(m, "/", "z", "s", "h", "enter", "enter")
+	if v := m.View().Content; !strings.Contains(v, "pending: apply retries it") {
+		t.Errorf("drilldown should say the hook is pending:\n%s", v)
 	}
 }
