@@ -254,3 +254,148 @@ func TestAddSameFileTwiceAddsOnce(t *testing.T) {
 		t.Errorf("%d 'added' lines, want 1:\n%s", n, out)
 	}
 }
+
+// A directory adopts every file under it, nested ones included, and the
+// follow-up status is clean - as if each file had been named by hand.
+func TestAddDirectory(t *testing.T) {
+	s := sandbox(t)
+	for _, f := range []string{".config/nvim/init.lua", ".config/nvim/lua/plugins.lua"} {
+		writeFile(t, s.home(f), f+"\n")
+	}
+	out, err := run(t, "add", "~/.config/nvim")
+	if err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	for _, f := range []string{".config/nvim/init.lua", ".config/nvim/lua/plugins.lua"} {
+		if got := readFile(t, s.repo("base/"+f)); got != f+"\n" {
+			t.Errorf("base/%s = %q", f, got)
+		}
+	}
+	if out, err := run(t, "status"); err != nil {
+		t.Errorf("status after add: %v, want clean\n%s", err, out)
+	}
+}
+
+// Walking a directory skips what apply would never manage (ignore
+// patterns), .git folders (git won't commit them, so they'd exist on this
+// machine only) and symlinks (they may point outside $HOME, or loop) - and
+// says how many it skipped instead of listing each.
+func TestAddDirectorySkipsIgnoredGitAndSymlinks(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.repo("dots.toml"), "ignore = [\"**/*.swp\"]\n")
+	writeFile(t, s.home(".config/nvim/init.lua"), "init\n")
+	writeFile(t, s.home(".config/nvim/.init.lua.swp"), "scratch\n")
+	writeFile(t, s.home(".config/nvim/.DS_Store"), "finder\n")
+	writeFile(t, s.home(".config/nvim/.git/HEAD"), "ref\n")
+	if err := os.Symlink(s.home(".config/nvim/init.lua"), s.home(".config/nvim/link.lua")); err != nil {
+		t.Skipf("can't create symlinks here: %v", err)
+	}
+	out, err := run(t, "add", ".config/nvim")
+	if err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if !exists(s.repo("base/.config/nvim/init.lua")) {
+		t.Error("init.lua not added")
+	}
+	for _, f := range []string{".init.lua.swp", ".DS_Store", ".git/HEAD", "link.lua"} {
+		if exists(s.repo("base/.config/nvim/" + f)) {
+			t.Errorf("base/.config/nvim/%s added; want it skipped", f)
+		}
+	}
+	if !containsLine(out, "skipped 4", ".config/nvim") {
+		t.Errorf("no 'skipped 4 ... .config/nvim' line:\n%s", out)
+	}
+}
+
+// Within one directory each file still goes to the layer that wins for it:
+// a managed work-only file stays in work/, a new one lands in base/.
+func TestAddDirectoryEachFileToItsWinningLayer(t *testing.T) {
+	s := sandbox(t, "work")
+	writeFile(t, s.repo("work/.config/git/config"), "work\n")
+	if _, err := run(t, "apply"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, s.home(".config/git/config"), "edited work\n")
+	writeFile(t, s.home(".config/git/ignore"), "*.o\n")
+	if out, err := run(t, "add", ".config/git"); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if got := readFile(t, s.repo("work/.config/git/config")); got != "edited work\n" {
+		t.Errorf("work/.config/git/config = %q", got)
+	}
+	if exists(s.repo("base/.config/git/config")) {
+		t.Error("the work-only config leaked into base/")
+	}
+	if got := readFile(t, s.repo("base/.config/git/ignore")); got != "*.o\n" {
+		t.Errorf("base/.config/git/ignore = %q", got)
+	}
+}
+
+// A directory and a file inside it, named together, add that file once.
+func TestAddDirectoryAndFileInsideAddsOnce(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".config/nvim/init.lua"), "init\n")
+	out, err := run(t, "add", ".config/nvim", ".config/nvim/init.lua")
+	if err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if n := strings.Count(out, "added"); n != 1 {
+		t.Errorf("%d 'added' lines, want 1:\n%s", n, out)
+	}
+}
+
+// $HOME itself would sweep up caches, keys and tokens. Refuse it outright.
+func TestAddRefusesHome(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".a"), "a\n")
+	for _, arg := range []string{"~", s.Home} {
+		_, err := run(t, "add", arg)
+		if err == nil || !strings.Contains(err.Error(), "home directory itself") {
+			t.Errorf("add %s: err = %v, want a refusal naming the home directory", arg, err)
+		}
+	}
+	if exists(s.repo("base/.a")) {
+		t.Error("add ~ wrote base/.a")
+	}
+}
+
+// A directory with nothing to add is a bad path like any other: an error,
+// and nothing else in the call is written.
+func TestAddEmptyDirectoryIsAnError(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".a"), "a\n")
+	writeFile(t, s.home(".empty/.DS_Store"), "finder\n") // ignored, so effectively empty
+	_, err := run(t, "add", ".a", ".empty")
+	if err == nil || !strings.Contains(err.Error(), "nothing to add") {
+		t.Errorf("add .empty: err = %v, want 'nothing to add'", err)
+	}
+	if exists(s.repo("base/.a")) {
+		t.Error("add wrote base/.a before failing")
+	}
+}
+
+// --dry-run says where each file would go and writes nothing: not the
+// repo, not state.json.
+func TestAddDryRun(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.home(".config/nvim/init.lua"), "init\n")
+	writeFile(t, s.home(".a"), "a\n")
+	out, err := run(t, "add", "--dry-run", ".config/nvim", ".a")
+	if err != nil {
+		t.Fatalf("add --dry-run: %v\n%s", err, out)
+	}
+	for _, f := range []string{".config/nvim/init.lua", ".a"} {
+		if !containsLine(out, "would add", f, "base/"+f) {
+			t.Errorf("no 'would add %s → base/%s' line:\n%s", f, f, out)
+		}
+		if exists(s.repo("base/" + f)) {
+			t.Errorf("--dry-run wrote base/%s", f)
+		}
+	}
+	if strings.Contains(out, "added") {
+		t.Errorf("--dry-run printed an 'added' line:\n%s", out)
+	}
+	if exists(s.State) {
+		t.Error("--dry-run wrote state.json")
+	}
+}

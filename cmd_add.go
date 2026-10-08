@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -20,7 +21,9 @@ import (
 // into a home-relative slash path.
 func relFromArg(arg, home string) (string, error) {
 	p := arg
-	if strings.HasPrefix(p, "~/") {
+	if p == "~" {
+		p = home
+	} else if strings.HasPrefix(p, "~/") {
 		p = filepath.Join(home, p[2:])
 	}
 	if !filepath.IsAbs(p) {
@@ -36,8 +39,9 @@ func relFromArg(arg, home string) (string, error) {
 
 func newAddCmd() *cobra.Command {
 	var layer string
+	var dryRun bool
 	cmd := &cobra.Command{
-		Use:   "add <file>...",
+		Use:   "add <file|dir>...",
 		Short: "Copy files from $HOME into the repo (adopt new files, or absorb local edits)",
 		Long: `One command for two jobs:
 
@@ -54,6 +58,12 @@ Several files can be added at once, each to its own winning layer (or all
 to --layer). Every path is checked before anything is written, so one bad
 path means nothing is added.
 
+A directory adds every file under it, each to its own winning layer. The
+walk skips ignored files (the same ignore rules apply uses), .git folders
+and symlinks, and says how many it skipped. Your home directory itself is
+refused, and a directory with nothing to add is an error. Preview a big one
+with --dry-run first: it lists each file and its layer, and writes nothing.
+
 --layer must be a folder in the repo or one of this machine's layers. When
 that layer isn't the one this machine gets the file from (a later layer
 overrides it, or it isn't one of this machine's layers), the copy is saved
@@ -64,6 +74,7 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 		Example: `  strata add .vimrc              adopt a new file into base/
   strata add .zshrc              absorb your local .zshrc edits
   strata add .zshrc .vimrc ~/.config/git/*
+  strata add -n ~/.config/nvim   preview a whole directory, then drop -n
   strata add .Brewfile --layer mac`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -94,13 +105,38 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 				content     []byte
 				mode        os.FileMode
 			}
-			var files []addFile
-			seen := map[string]bool{}
+			var rels, notes []string
 			for _, arg := range args {
 				rel, err := relFromArg(arg, app.Paths.Home)
 				if err != nil {
 					return err
 				}
+				if rel == "." {
+					return fmt.Errorf("refusing to add the home directory itself (%s) - it holds caches, keys and tokens; name the files or folders you want", app.Paths.Home)
+				}
+				info, err := os.Stat(filepath.Join(app.Paths.Home, filepath.FromSlash(rel)))
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() {
+					rels = append(rels, rel)
+					continue
+				}
+				found, skipped, err := filesUnder(app.Paths.Home, rel, app.Cfg.Ignore)
+				if err != nil {
+					return err
+				}
+				if len(found) == 0 {
+					return fmt.Errorf("nothing to add under %s: no files, or only ones strata skips (ignore patterns, .git folders, symlinks)", rel)
+				}
+				if skipped > 0 {
+					notes = append(notes, fmt.Sprintf("note: skipped %d under %s (ignore patterns, .git folders and symlinks aren't added)", skipped, rel))
+				}
+				rels = append(rels, found...)
+			}
+			var files []addFile
+			seen := map[string]bool{}
+			for _, rel := range rels {
 				if seen[rel] {
 					continue
 				}
@@ -134,6 +170,9 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 			// next apply "update" $HOME back to the winning layer's copy - or,
 			// for a layer this machine doesn't use, delete the file as removed.
 			out := cmd.OutOrStdout()
+			for _, n := range notes {
+				fmt.Fprintln(out, n)
+			}
 			record := map[string]string{}
 			var writeErr error
 			for _, f := range files {
@@ -142,6 +181,10 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 						fmt.Fprintf(cmd.ErrOrStderr(),
 							"warning: %s uses {{var}} substitution - you just captured the EXPANDED values; restore the {{tokens}} by hand (strata edit %s)\n", f.rel, f.rel)
 					}
+				}
+				if dryRun {
+					fmt.Fprintf(out, "would add %s → %s/%s\n", f.rel, f.target, f.rel)
+					continue
 				}
 				dest := filepath.Join(app.Cfg.RepoDir, f.target, filepath.FromSlash(f.rel))
 				if writeErr = fsutil.WriteFileAtomic(dest, f.content, f.mode); writeErr != nil {
@@ -189,8 +232,47 @@ captured contains the expanded values - restore the {{tokens}} by hand.`,
 			return writeErr
 		},
 	}
+	cmd.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "show what would be added, and where, without writing")
 	cmd.Flags().StringVar(&layer, "layer", "", "target layer: a folder in the repo or one of this machine's layers (default: winning layer, else base)")
 	return cmd
+}
+
+// filesUnder lists the regular files under the home-relative directory dir,
+// as home-relative slash paths. It skips what apply would never manage
+// (ignore patterns), .git folders (git won't commit them, so they'd exist in
+// this machine's repo only) and symlinks (not followed: they can point
+// outside $HOME or loop), and returns how many entries it skipped.
+func filesUnder(home, dir string, ignore []string) (files []string, skipped int, err error) {
+	err = filepath.WalkDir(filepath.Join(home, filepath.FromSlash(dir)), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				skipped++
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			skipped++
+			return nil
+		}
+		rel, err := filepath.Rel(home, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if ignored, err := layers.Ignored(rel, ignore); err != nil {
+			return err
+		} else if ignored {
+			skipped++
+			return nil
+		}
+		files = append(files, rel)
+		return nil
+	})
+	return files, skipped, err
 }
 
 // checkTargetLayer rejects a --layer that is neither a folder in the repo
