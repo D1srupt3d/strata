@@ -145,6 +145,16 @@ same review found `--force` deleting edited removed files as a side effect
 of settling an unrelated drift - `--force` now means "take the repo's
 version" and nothing else.
 
+## done - October 2026: adding whole directories
+
+`strata add ~/.config/nvim` adopts every file under it in one go, each to
+the layer that wins for it, using the same ignore rules apply does. The walk
+also skips `.git` folders (git won't commit them, so they'd only exist on
+this machine) and symlinks, and says how many it skipped. One argument can
+now pull in a lot, so `strata add ~` is refused outright and `add -n`
+previews the list - `~/.config` holds things like the gh token, and I'd
+rather see that before it's in a commit.
+
 ## soon-ish
 
 **Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
@@ -162,10 +172,6 @@ Needs its own repo and a token that can write to only that repo.
 a shell prompt or a script can ask "anything drifted?" without parsing text
 meant for humans. `status` already exits 1 when something needs attention;
 this is the structured version of the same answer.
-
-**Add whole directories.** `strata add ~/.config/nvim` should adopt every
-file under it in one go instead of me running `add` file by file - using the
-same ignore rules apply does, so editor scratch and caches don't sneak in.
 
 **Rehearse a key rotation.** The release-signing key is a single point of
 trust. The plan is written down (ship one release that trusts both keys,

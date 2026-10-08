@@ -261,7 +261,7 @@ Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 | `strata diff` | Diff what's in `$HOME` against what apply would write |
 | `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes, `--prune` to delete files that left the repo) |
 | `strata edit <file>` | Open the winning layer's source in your editor, show the diff, offer to apply |
-| `strata add <file>...` | Copy files from `$HOME` into the repo - adopt new files, or keep local edits (`--layer` to choose where) |
+| `strata add <file\|dir>...` | Copy files from `$HOME` into the repo - adopt new files, or keep local edits (`--layer` to choose where, `-n` to preview) |
 | `strata rm <file>` | Delete a file from its winning layer, then apply |
 | `strata sync` | `git pull --ff-only` in the repo, then apply |
 | `strata init` | Set up this machine: clone or use a repo, choose role layers, first apply |
@@ -287,6 +287,7 @@ Every command has full help with examples: `strata <command> --help`.
 - Without `--layer`, each file goes to the layer that currently wins for it, or `base` for a new file. If the repo can't be planned right now (say, an undefined `{{var}}`), add refuses rather than guess `base` - which could push a work-only file to every machine.
 - `--layer` must be a folder in the repo or one of this machine's layers, so a typo is an error, not a new layer. If that layer isn't the one this machine gets the file from, the copy is saved but `$HOME` is left alone, and add tells you which layer wins.
 - Several files at once (`strata add .zshrc .vimrc ~/.config/git/*`) are all checked before any is written: one bad path adds nothing.
+- A directory (`strata add ~/.config/nvim`) adds every file under it, each to its own winning layer. Ignored files, `.git` folders and symlinks are skipped (add says how many); your home folder itself is refused. `strata add -n <dir>` lists what would be added, and where, without writing anything.
 - Adding a file on the `substitute` list captures the *expanded* values; add warns you to restore the `{{tokens}}` by hand.
 - Paths can be `.zshrc`, `~/.zshrc`, or absolute; files outside your home folder are rejected.
 
