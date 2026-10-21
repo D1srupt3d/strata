@@ -1,5 +1,10 @@
 # strata
 
+[![ci](https://github.com/D1srupt3d/strata/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/D1srupt3d/strata/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/D1srupt3d/strata)](https://github.com/D1srupt3d/strata/releases/latest)
+[![go version](https://img.shields.io/github/go-mod/go-version/D1srupt3d/strata)](go.mod)
+[![license](https://img.shields.io/github/license/D1srupt3d/strata)](LICENSE)
+
 **Layered dotfiles, sanely.**
 
 strata is a cross-platform dotfiles manager (macOS, Linux, Windows) built around three ideas:
