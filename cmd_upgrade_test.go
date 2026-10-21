@@ -107,6 +107,7 @@ func TestIsHomebrewPath(t *testing.T) {
 		"/usr/local/Cellar/strata/2026.9.1/bin/strata":                 true,
 		"/home/linuxbrew/.linuxbrew/Cellar/strata/2026.9.1/bin/strata": true,
 		"/opt/homebrew/bin/strata":                                     true,
+		"/usr/local/Caskroom/strata/2026.10.1/strata":                  true,
 		"/Users/you/.local/bin/strata":                                 false,
 		"/usr/local/bin/strata":                                        false,
 	} {

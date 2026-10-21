@@ -170,3 +170,43 @@ func TestUninstallDeclineAborts(t *testing.T) {
 		t.Fatalf("decline should keep the binary: %v", err)
 	}
 }
+
+// A Homebrew cask links <prefix>/bin/strata to a binary in its Caskroom.
+// Homebrew owns both, so uninstall leaves them (deleting the link would make
+// brew think strata is still installed) and points at brew instead.
+func TestUninstallLeavesHomebrewBinary(t *testing.T) {
+	_, bin, machine, state, _ := setupInstall(t)
+	prefix := filepath.Join(t.TempDir(), "usr", "local")
+	real := filepath.Join(prefix, "Caskroom", "strata", "2026.10.1", "strata")
+	link := filepath.Join(prefix, "bin", "strata")
+	for _, d := range []string{filepath.Dir(real), filepath.Dir(link)} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Rename(bin, real); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("can't create symlinks here: %v", err)
+	}
+	t.Setenv("STRATA_BIN", link)
+
+	out, err := run(t, "uninstall", "--yes")
+	if err != nil {
+		t.Fatalf("uninstall: %v\n%s", err, out)
+	}
+	for _, f := range []string{link, real} {
+		if _, err := os.Stat(f); err != nil {
+			t.Errorf("Homebrew-owned %s was removed: %v", f, err)
+		}
+	}
+	for _, f := range []string{machine, state} {
+		if _, err := os.Stat(f); !os.IsNotExist(err) {
+			t.Errorf("expected %s gone, stat err = %v", f, err)
+		}
+	}
+	if !strings.Contains(out, "brew uninstall strata") {
+		t.Errorf("expected a pointer to 'brew uninstall strata', got:\n%s", out)
+	}
+}

@@ -23,7 +23,8 @@ func newUninstallCmd() *cobra.Command {
 		Short: "Remove strata itself: the binary, machine.toml, state.json, and the installer's PATH line",
 		Long: `Removes everything strata put on this machine:
 
-  - the strata binary (the one you're running)
+  - the strata binary (the one you're running), unless Homebrew installed
+    it - then run 'brew uninstall strata' for that part
   - ~/.config/strata/machine.toml   (this machine's config)
   - ~/.local/state/strata/state.json (strata's memory of what it wrote)
     and its lock file
@@ -45,10 +46,24 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 			}
 			out := cmd.OutOrStdout()
 
+			// Homebrew owns its binary and the link to it; deleting the link
+			// would leave brew thinking strata is still installed.
+			bin, brewNote := p.Bin, ""
+			if bin != "" {
+				target := bin
+				if resolved, err := filepath.EvalSymlinks(bin); err == nil {
+					target = resolved
+				}
+				if isHomebrewPath(target) {
+					brewNote = fmt.Sprintf("%s is managed by Homebrew - run 'brew uninstall strata' to remove it", bin)
+					bin = ""
+				}
+			}
+
 			// Gather what actually exists so we only list real targets.
 			var files []string   // files to delete
 			var rcFiles []string // shell rc files that carry the installer's PATH line
-			for _, f := range []string{p.State, p.State + ".lock", p.Machine, p.Bin} {
+			for _, f := range []string{p.State, p.State + ".lock", p.Machine, bin} {
 				if f == "" {
 					continue
 				}
@@ -65,6 +80,9 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 				}
 			}
 
+			if brewNote != "" {
+				fmt.Fprintln(out, brewNote)
+			}
 			if len(files) == 0 && len(rcFiles) == 0 {
 				fmt.Fprintln(out, "nothing to remove - strata isn't installed here")
 				return nil
@@ -96,7 +114,7 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 			// The binary is deleted last so a mid-run failure still leaves a
 			// working binary to retry with.
 			var failed []string
-			for _, f := range orderBinLast(files, p.Bin) {
+			for _, f := range orderBinLast(files, bin) {
 				if err := os.Remove(f); err != nil {
 					fmt.Fprintf(out, "could not remove %s: %v\n", f, err)
 					failed = append(failed, f)
@@ -106,7 +124,7 @@ Prompts for confirmation first; pass --yes to skip, or --dry-run to preview.`,
 				// Clean up now-empty strata dirs (e.g. ~/.config/strata). Try
 				// after every removal: the state dir only empties once both
 				// state.json and its lock are gone.
-				if f != p.Bin {
+				if f != bin {
 					_ = os.Remove(filepath.Dir(f)) // no-op if not empty
 				}
 			}
