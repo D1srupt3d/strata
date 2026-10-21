@@ -131,6 +131,14 @@ for something dumb both times, the way the work Mac delivered in 2026.9.0.
 Nothing showed up - which mostly says the fixture tests were testing the
 right things.
 
+## done - September 2026: vars per layer
+
+The thing that bit me on the work Mac. `[layer_vars.work]` in dots.toml
+means picking the work layer brings the work values with it, instead of me
+remembering to hand-edit machine.toml. Vars stack like files: `[vars]`, then
+each of the machine's layers in order, then machine.toml. A section naming
+a layer the repo doesn't have is an error, same as a typo'd role.
+
 ## done - September 2026: deleting is opt-in
 
 2026.07.1 made removal automatic, and a branch switch showed why that was
@@ -155,18 +163,23 @@ now pull in a lot, so `strata add ~` is refused outright and `add -n`
 previews the list - `~/.config` holds things like the gh token, and I'd
 rather see that before it's in a commit.
 
+## done - 2026.10.1: Homebrew tap
+
+The loose end from 2026.8.0. `brew install D1srupt3d/strata/strata` works
+now: every release tag has GoReleaser write a cask to the `homebrew-strata`
+tap, with a token that can write to that one repo and nothing else. A cask,
+not a formula - GoReleaser deprecated formulas for prebuilt binaries. strata
+isn't notarized by Apple, so the cask clears macOS's quarantine flag, and
+the trust comes from the SHA-256 it pins for every archive, the same ones
+the signed checksums.txt lists.
+
+Wiring it up found two ways strata would have fought Homebrew. On an Intel
+Mac, `strata upgrade` didn't recognize the Caskroom and would have replaced
+a file Homebrew owns. And `strata uninstall` deleted the binary out from
+under brew, which then still thought strata was installed. Both now step
+aside and point at `brew upgrade` / `brew uninstall`.
+
 ## soon-ish
-
-**Vars per layer.** `[layer_vars.work]` in dots.toml, so picking the work
-layer at init brings the work values with it instead of me remembering to
-hand-edit machine.toml. Precedence follows the file stack: defaults → OS
-layer → role layer → machine.toml. The format's decided and the provenance
-plumbing the TUI needs is already in.
-
-**Homebrew tap.** The loose end from 2026.8.0. Now that releases are signed,
-GoReleaser can publish a formula to a `homebrew-strata` tap on every tag,
-and `strata upgrade` already knows to step aside for Homebrew installs.
-Needs its own repo and a token that can write to only that repo.
 
 **Scriptable output.** `strata status --json` (and probably `diff --json`) so
 a shell prompt or a script can ask "anything drifted?" without parsing text
