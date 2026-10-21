@@ -131,6 +131,16 @@ for something dumb both times, the way the work Mac delivered in 2026.9.0.
 Nothing showed up - which mostly says the fixture tests were testing the
 right things.
 
+## done - 2026.9.3: strata doctor
+
+Every other command stops at the first broken thing, so fixing a new
+machine's setup was one error per run. `strata doctor` keeps going and lists
+every problem at once, each with a fix: machine.toml, the repo, dots.toml
+entries that name no file, bad patterns, undefined `{{vars}}`, stale state,
+and whether the `strata` on PATH is even this binary. It only reads, and it
+reuses the same code apply does, so it can't disagree with what apply would
+actually do.
+
 ## done - September 2026: vars per layer
 
 The thing that bit me on the work Mac. `[layer_vars.work]` in dots.toml
@@ -138,6 +148,13 @@ means picking the work layer brings the work values with it, instead of me
 remembering to hand-edit machine.toml. Vars stack like files: `[vars]`, then
 each of the machine's layers in order, then machine.toml. A section naming
 a layer the repo doesn't have is an error, same as a typo'd role.
+
+## done - 2026.9.6: add takes several files
+
+`strata add .zshrc .vimrc ~/.config/git/*` instead of one `add` per file.
+Same all-or-nothing rule as apply: every path is checked and given a layer
+before anything is written, so one typo adds nothing. Directories came
+later (October, below).
 
 ## done - September 2026: deleting is opt-in
 
@@ -152,6 +169,15 @@ delete". `strata rm` still deletes its own file, and only that one. The
 same review found `--force` deleting edited removed files as a side effect
 of settling an unrelated drift - `--force` now means "take the repo's
 version" and nothing else.
+
+## done - 2026.9.7: diffs say which side is newer
+
+A `drifted` diff looked exactly like a pending `update`, so I couldn't tell
+which copy had the newer edit. Now `diff`, `edit` and the TUI all say it in
+words ("$HOME has the newer edit") and show each side's modified time. The
+words come from the hashes, so they're reliable; the times are only there to
+help read a conflict, because a `git pull` stamps files with the pull time,
+not the time of the edit.
 
 ## done - October 2026: adding whole directories
 
