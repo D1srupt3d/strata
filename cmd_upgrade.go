@@ -122,7 +122,7 @@ Only release builds replace themselves:
 // Homebrew owns those files and its own bookkeeping, so strata defers to it.
 func isHomebrewPath(p string) bool {
 	p = filepath.ToSlash(p)
-	for _, marker := range []string{"/Cellar/", "/opt/homebrew/", "/home/linuxbrew/.linuxbrew/", "/usr/local/Homebrew/"} {
+	for _, marker := range []string{"/Cellar/", "/Caskroom/", "/opt/homebrew/", "/home/linuxbrew/.linuxbrew/", "/usr/local/Homebrew/"} {
 		if strings.Contains(p, marker) {
 			return true
 		}

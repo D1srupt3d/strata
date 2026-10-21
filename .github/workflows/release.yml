@@ -39,12 +39,23 @@ jobs:
           umask 077
           printf '%s\n' "$STRATA_RELEASE_KEY" > "$RUNNER_TEMP/strata_release_key"
           echo "STRATA_RELEASE_KEY_FILE=$RUNNER_TEMP/strata_release_key" >> "$GITHUB_ENV"
+      # The tap is pushed after the GitHub release is created, so a missing
+      # token would fail halfway; check it before anything is published.
+      - name: Check Homebrew tap token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not set in the 'release' environment"
+            exit 1
+          fi
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       # Belt and braces: check the published signature against the public
       # key in the repo - the same check `strata upgrade` and get.sh make.
       - name: Verify release signature

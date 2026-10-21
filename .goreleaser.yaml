@@ -34,6 +34,29 @@ signs:
     args: ["-Y", "sign", "-n", "strata-release", "-f", "{{ .Env.STRATA_RELEASE_KEY_FILE }}", "${artifact}"]
     signature: "${artifact}.sig"
 
+# Homebrew: publish a cask (GoReleaser deprecated formulas for prebuilt
+# binaries) to the D1srupt3d/homebrew-strata tap on every release. The token
+# is HOMEBREW_TAP_TOKEN in the `release` environment, a fine-grained token
+# that can write to that one repo and nothing else. `strata upgrade` and
+# `strata uninstall` step aside for Homebrew installs (isHomebrewPath).
+homebrew_casks:
+  - repository:
+      owner: D1srupt3d
+      name: homebrew-strata
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/D1srupt3d/strata
+    description: Dotfiles manager with layers instead of templates
+    skip_upload: auto # never publish a prerelease to the tap
+    # strata isn't notarized by Apple, so Gatekeeper would refuse a
+    # quarantined download. The cask pins each archive's SHA-256 from
+    # checksums.txt, which is what we trust instead.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/strata"]
+          end
+
 changelog:
   sort: asc
   filters:
