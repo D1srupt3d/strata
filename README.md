@@ -26,7 +26,13 @@ curl -fsSL https://raw.githubusercontent.com/D1srupt3d/strata/main/get.sh | sh
 
 This installs `~/.local/bin/strata`, but only after checking the release's signature, its SHA-256, and that the binary runs and reports the right version. Update later with `strata upgrade`. On Windows, download the `.zip` from the [releases page](https://github.com/D1srupt3d/strata/releases).
 
-To remove strata later, run `strata uninstall`: it deletes the binary, its config and state, and the PATH line - never your dotfiles.
+Or with Homebrew (macOS or Linux), updated with `brew upgrade strata`:
+
+```sh
+brew install D1srupt3d/strata/strata
+```
+
+To remove strata later, run `strata uninstall`: it deletes the binary, its config and state, and the PATH line - never your dotfiles. On a Homebrew install it leaves the binary to `brew uninstall strata`.
 
 <details>
 <summary>Building from source, and what the installers change</summary>
