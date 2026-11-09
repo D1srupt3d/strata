@@ -205,23 +205,29 @@ a file Homebrew owns. And `strata uninstall` deleted the binary out from
 under brew, which then still thought strata was installed. Both now step
 aside and point at `brew upgrade` / `brew uninstall`.
 
-## soon-ish
+## done - 2026.11.0: scripts and Tab can ask too
 
-**Scriptable output.** `strata status --json` (and probably `diff --json`) so
-a shell prompt or a script can ask "anything drifted?" without parsing text
-meant for humans. `status` already exits 1 when something needs attention;
-this is the structured version of the same answer.
+`strata status --json` lists every file - clean ones included, since a
+script can drop what it doesn't need but can't recover what was never
+printed - with its status and the layer it comes from, plus any pending
+hooks. Same exit code as the text version. `diff --json` stays unbuilt until
+something actually wants it.
+
+`strata edit .z<Tab>` and `strata rm <Tab>` now complete to the files strata
+manages, running the resolver on each Tab. It never falls back to plain file
+names (that would offer files strata can't act on) and stays quiet on a
+machine that isn't set up. The completion script itself was always free from
+Cobra; the installers still don't load it, because that means editing
+`.zshrc`, which strata manages. One line in your repo's `.zshrc` does it,
+and the README says which.
+
+## soon-ish
 
 **Rehearse a key rotation.** The release-signing key is a single point of
 trust. The plan is written down (ship one release that trusts both keys,
 then switch), but I'd rather do it once calmly than for the first time in a
 hurry - and decide what "the key leaked" really looks like beyond
 "reinstall with get.sh".
-
-**Shell completions.** Cobra generates them for free (`strata completion
-zsh`), I just haven't wired the install script to put them anywhere. Tab
-completion for file arguments (`strata edit .zs<tab>`) would be nice too
-and is not free - needs the completion function to run the resolver.
 
 ## someday, maybe
 
