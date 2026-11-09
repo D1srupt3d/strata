@@ -81,11 +81,32 @@ func checkDotsToml(r *report, in Inputs, l loaded) {
 // every folder, not this machine's stack: a hook for a mac-only file is not
 // a no-op just because doctor runs on Linux.
 func everyLayerFile(repoDir string, ignore []string) (map[string]bool, error) {
-	entries, err := os.ReadDir(repoDir)
+	byLayer, err := filesByLayer(repoDir, ignore)
 	if err != nil {
 		return nil, err
 	}
 	all := map[string]bool{}
+	for _, lf := range byLayer {
+		for rel := range lf.files {
+			all[rel] = true
+		}
+	}
+	return all, nil
+}
+
+// layerFiles is one layer folder's files: rel path -> absolute path.
+type layerFiles struct {
+	name  string
+	files map[string]string
+}
+
+// filesByLayer resolves every folder in the repo on its own, in name order.
+func filesByLayer(repoDir string, ignore []string) ([]layerFiles, error) {
+	entries, err := os.ReadDir(repoDir)
+	if err != nil {
+		return nil, err
+	}
+	var out []layerFiles
 	for _, e := range entries {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue // .git and friends are not layers
@@ -94,11 +115,9 @@ func everyLayerFile(repoDir string, ignore []string) (map[string]bool, error) {
 		if err != nil {
 			return nil, err
 		}
-		for rel := range files {
-			all[rel] = true
-		}
+		out = append(out, layerFiles{e.Name(), files})
 	}
-	return all, nil
+	return out, nil
 }
 
 // checkPermissions warns on rules that match no file, and reports what apply

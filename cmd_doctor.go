@@ -26,6 +26,8 @@ It checks:
   dots.toml  entries naming no file in any layer (substitute, hooks,
              permissions), bad ignore or permission patterns, permission
              rules that disagree, undefined {{vars}}
+  layers     a file copied into several layers that is identical, or
+             differs in a line or two (one copy plus a {{var}} is easier)
   state      state.json, entries outside $HOME or gone from it, pending
              hooks whose hook was removed
   install    version, whether 'strata' on your PATH is this binary, git
