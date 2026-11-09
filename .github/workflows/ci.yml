@@ -1,9 +1,31 @@
 name: ci
 
+# Only changes that can break the build or tests run CI: Go code plus the
+# non-Go files the tests read. A docs-only change (README, ROADMAP) skips it.
+# Safe because main has no required status checks; requiring this job would
+# leave docs-only PRs waiting forever. Releases still test every tag.
 on:
   push:
     branches: [main]
+    paths: # keep in sync with pull_request below
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/release/release_key.pub' # embedded in the binary
+      - 'internal/release/testdata/**'     # signature fixtures
+      - 'get.sh'                           # run by getsh_test.go
+      - '.gitattributes'                   # keeps fixtures byte-exact on Windows
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/release/release_key.pub' # embedded in the binary
+      - 'internal/release/testdata/**'     # signature fixtures
+      - 'get.sh'                           # run by getsh_test.go
+      - '.gitattributes'                   # keeps fixtures byte-exact on Windows
+      - '.github/workflows/ci.yml'
 
 permissions:
   contents: read
