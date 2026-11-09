@@ -267,7 +267,7 @@ Move the folder, then update `repo` in `machine.toml`. Nothing is rewritten.
 | Command | What it does |
 |---|---|
 | `strata` | Open the read-only [TUI](#the-tui) |
-| `strata status` | List files that need attention; exit status 1 if any do |
+| `strata status` | List files that need attention; exit status 1 if any do. `--json` lists every file for scripts |
 | `strata doctor` | Check this machine's setup and list every problem, each with a fix; exit status 1 on errors |
 | `strata diff` | Diff what's in `$HOME` against what apply would write |
 | `strata apply` | Write changes into `$HOME`, then run hooks (`-n` to preview, `--force` to overwrite local changes, `--prune` to delete files that left the repo) |
