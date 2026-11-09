@@ -25,7 +25,8 @@ If apply would refuse right now (a drifted or conflicting file anywhere),
 rm refuses before deleting anything, so it never stops half done.`,
 		Example: `  strata rm .tmux.conf        stop managing it AND remove it from $HOME
   strata rm .gitconfig        drop the work override; base wins again`,
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeManaged,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

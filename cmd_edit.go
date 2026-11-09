@@ -27,7 +27,8 @@ To edit a non-winning layer's copy (e.g. base/.gitconfig while work/
 overrides it), just open that file directly - it's a plain file.`,
 		Example: `  strata edit .zshrc
   EDITOR="code --wait" strata edit .gitconfig`,
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeManaged,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {
