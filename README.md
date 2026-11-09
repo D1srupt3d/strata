@@ -39,6 +39,8 @@ brew install D1srupt3d/strata/strata
 
 To remove strata later, run `strata uninstall`: it deletes the binary, its config and state, and the PATH line - never your dotfiles. On a Homebrew install it leaves the binary to `brew uninstall strata`.
 
+**Tab completion:** add `command -v strata >/dev/null && source <(strata completion zsh)` to your repo's `base/.zshrc`, after `compinit` runs (bash: `source <(strata completion bash)`; fish: `strata completion fish | source`). `strata edit <Tab>` and `strata rm <Tab>` then offer the files strata manages.
+
 <details>
 <summary>Building from source, and what the installers change</summary>
 
