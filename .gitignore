@@ -3,6 +3,7 @@
 *.exe
 # goreleaser output
 /dist/
+/completions/
 
 .DS_Store
 # local Claude Code settings
