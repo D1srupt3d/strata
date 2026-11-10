@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -163,4 +164,89 @@ func TestWriteFileAtomicFailsWhenTargetIsAFolder(t *testing.T) {
 		t.Errorf("folder contents changed: %q", got)
 	}
 	noTempLitter(t, dir)
+}
+
+// failingTemp is a real temp file that fails at one step, for the failures a
+// real disk rarely produces mid-write (full disk, I/O error).
+type failingTemp struct {
+	*os.File
+	failAt string // "write", "chmod", "sync" or "close"
+	closed bool
+}
+
+var errInjected = errors.New("injected failure")
+
+func (f *failingTemp) fail(step string) error {
+	if f.failAt == step {
+		return errInjected
+	}
+	return nil
+}
+
+func (f *failingTemp) Write(b []byte) (int, error) {
+	if err := f.fail("write"); err != nil {
+		return 0, err
+	}
+	return f.File.Write(b)
+}
+
+func (f *failingTemp) Chmod(m os.FileMode) error {
+	if err := f.fail("chmod"); err != nil {
+		return err
+	}
+	return f.File.Chmod(m)
+}
+
+func (f *failingTemp) Sync() error {
+	if err := f.fail("sync"); err != nil {
+		return err
+	}
+	return f.File.Sync()
+}
+
+// Close always closes the real file, so the temp file can be removed (on
+// Windows an open file can't be), and records that it was called.
+func (f *failingTemp) Close() error {
+	f.closed = true
+	if err := f.File.Close(); err != nil {
+		return err
+	}
+	return f.fail("close")
+}
+
+// Whichever step fails, the error comes back, the old file is untouched,
+// the temp file is closed and removed.
+func TestWriteFileAtomicFailsMidWrite(t *testing.T) {
+	for _, step := range []string{"write", "chmod", "sync", "close"} {
+		t.Run(step, func(t *testing.T) {
+			dir := t.TempDir()
+			target := filepath.Join(dir, ".zshrc")
+			if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var fake *failingTemp
+			orig := createTemp
+			t.Cleanup(func() { createTemp = orig })
+			createTemp = func(dir, pattern string) (tempFile, error) {
+				f, err := os.CreateTemp(dir, pattern)
+				if err != nil {
+					return nil, err
+				}
+				fake = &failingTemp{File: f, failAt: step}
+				return fake, nil
+			}
+
+			err := WriteFileAtomic(target, []byte("new\n"), 0o644)
+			if !errors.Is(err, errInjected) {
+				t.Fatalf("err = %v, want the injected %s failure", err, step)
+			}
+			if got := readString(t, target); got != "old\n" {
+				t.Errorf("old file changed to %q", got)
+			}
+			if !fake.closed {
+				t.Error("temp file was never closed (leaks a file handle)")
+			}
+			noTempLitter(t, dir)
+		})
+	}
 }
