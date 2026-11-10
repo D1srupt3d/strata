@@ -203,7 +203,7 @@ Same idea for `work/`, `arch/`, and any other layer.
 
 ### One line differs per machine
 
-Use a variable instead of copying the file into a layer:
+Use a variable instead of copying the file into a layer. (`strata doctor` warns when it finds a file copied into several layers with only a line or two changed.)
 
 ```toml
 # dots.toml

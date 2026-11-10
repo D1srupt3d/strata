@@ -55,6 +55,7 @@ func Run(in Inputs) []Finding {
 	r := &report{}
 	l := checkConfig(r, in)
 	checkDotsToml(r, in, l)
+	checkLayers(r, in, l)
 	checkState(r, in, l)
 	checkInstall(r, in)
 	return r.findings
