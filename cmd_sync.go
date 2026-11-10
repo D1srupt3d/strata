@@ -16,6 +16,7 @@ func newSyncCmd() *cobra.Command {
 strata doesn't wrap git beyond this - commit and push in the repo with
 git as usual.`,
 		Example: `  strata sync`,
+		Args:    noFileArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

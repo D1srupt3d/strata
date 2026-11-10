@@ -51,6 +51,7 @@ Exit status: 0 when everything is clean, 1 when anything needs attention.
 		Example: `  strata status
   strata status || strata diff   # show the diff only when something needs attention
   strata status --json | jq -r '.files[] | select(.status != "clean") | .path'`,
+		Args: noFileArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

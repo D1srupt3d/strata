@@ -48,6 +48,7 @@ Safety rules:
   strata apply              write changes, run hooks
   strata apply --force      also overwrite drifted/conflicting files
   strata apply --prune      also delete files that left the repo`,
+		Args: noFileArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := loadContext()
 			if err != nil {

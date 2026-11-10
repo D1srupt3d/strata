@@ -91,3 +91,15 @@ func removeFile(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+// diff takes several files, so each Tab offers the managed files not
+// already on the line.
+func TestCompleteDiffSeveralFiles(t *testing.T) {
+	s := sandbox(t)
+	writeFile(t, s.repo("base/.zshrc"), "x\n")
+	writeFile(t, s.repo("base/.vimrc"), "x\n")
+	got, dir := complete(t, "diff", ".zshrc", "")
+	if !reflect.DeepEqual(got, []string{".vimrc"}) || dir != ":4" {
+		t.Errorf("diff .zshrc <Tab> = %q %s, want [.vimrc] :4", got, dir)
+	}
+}

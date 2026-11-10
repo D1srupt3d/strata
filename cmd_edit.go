@@ -57,7 +57,7 @@ overrides it), just open that file directly - it's a plain file.`,
 				return fmt.Errorf("editor: %w", err)
 			}
 			// Show what changed and offer to apply.
-			if err := writeDiff(app, cmd.OutOrStdout()); err != nil {
+			if err := writeDiff(app, cmd.OutOrStdout(), nil); err != nil {
 				return err
 			}
 			fmt.Fprint(cmd.OutOrStdout(), "apply now? [y/N] ")
