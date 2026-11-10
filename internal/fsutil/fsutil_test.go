@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -74,5 +75,178 @@ func TestWriteFileAtomicMakesNewFoldersAsPrivateAsTheFile(t *testing.T) {
 	}
 	if info, err := os.Stat(shared); err != nil || info.Mode().Perm() != 0o755 {
 		t.Errorf("existing folder changed: %v (err %v), want 0755", info.Mode().Perm(), err)
+	}
+}
+
+// A failed write must leave the old file exactly as it was and no
+// .strata-tmp-* file behind: a half-finished apply can't corrupt or litter
+// $HOME. These are the failures a real machine can produce; a failing
+// write, sync or close mid-file would need a fake filesystem.
+
+// noTempLitter fails if a temp file from WriteFileAtomic survived in dir.
+func noTempLitter(t *testing.T, dir string) {
+	t.Helper()
+	left, err := filepath.Glob(filepath.Join(dir, ".strata-tmp-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("temp files left behind: %v", left)
+	}
+}
+
+func readString(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// The parent folder can't be created because a file is in the way.
+func TestWriteFileAtomicFailsWhenParentIsAFile(t *testing.T) {
+	dir := t.TempDir()
+	blocker := filepath.Join(dir, ".config")
+	if err := os.WriteFile(blocker, []byte("a file, not a folder\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFileAtomic(filepath.Join(blocker, "app", "conf"), []byte("new"), 0o644); err == nil {
+		t.Fatal("want an error when a file sits where the folder should be")
+	}
+	if got := readString(t, blocker); got != "a file, not a folder\n" {
+		t.Errorf("the file in the way changed: %q", got)
+	}
+}
+
+// The temp file can't be created: the folder isn't writable.
+func TestWriteFileAtomicFailsInReadOnlyFolder(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no POSIX folder permissions on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes to read-only folders anyway")
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, ".zshrc")
+	if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) }) // so TempDir can be removed
+	if err := WriteFileAtomic(target, []byte("new\n"), 0o644); err == nil {
+		t.Fatal("want an error in a read-only folder")
+	}
+	if got := readString(t, target); got != "old\n" {
+		t.Errorf("old file changed to %q", got)
+	}
+	noTempLitter(t, dir)
+}
+
+// The final rename fails: a folder is where the file should go. By then the
+// temp file is fully written, so this is the case that tests the cleanup.
+func TestWriteFileAtomicFailsWhenTargetIsAFolder(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, ".vimrc")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(target, "keep")
+	if err := os.WriteFile(inside, []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFileAtomic(target, []byte("new\n"), 0o644); err == nil {
+		t.Fatal("want an error when the target is a folder")
+	}
+	if got := readString(t, inside); got != "keep\n" {
+		t.Errorf("folder contents changed: %q", got)
+	}
+	noTempLitter(t, dir)
+}
+
+// failingTemp is a real temp file that fails at one step, for the failures a
+// real disk rarely produces mid-write (full disk, I/O error).
+type failingTemp struct {
+	*os.File
+	failAt string // "write", "chmod", "sync" or "close"
+	closed bool
+}
+
+var errInjected = errors.New("injected failure")
+
+func (f *failingTemp) fail(step string) error {
+	if f.failAt == step {
+		return errInjected
+	}
+	return nil
+}
+
+func (f *failingTemp) Write(b []byte) (int, error) {
+	if err := f.fail("write"); err != nil {
+		return 0, err
+	}
+	return f.File.Write(b)
+}
+
+func (f *failingTemp) Chmod(m os.FileMode) error {
+	if err := f.fail("chmod"); err != nil {
+		return err
+	}
+	return f.File.Chmod(m)
+}
+
+func (f *failingTemp) Sync() error {
+	if err := f.fail("sync"); err != nil {
+		return err
+	}
+	return f.File.Sync()
+}
+
+// Close always closes the real file, so the temp file can be removed (on
+// Windows an open file can't be), and records that it was called.
+func (f *failingTemp) Close() error {
+	f.closed = true
+	if err := f.File.Close(); err != nil {
+		return err
+	}
+	return f.fail("close")
+}
+
+// Whichever step fails, the error comes back, the old file is untouched,
+// the temp file is closed and removed.
+func TestWriteFileAtomicFailsMidWrite(t *testing.T) {
+	for _, step := range []string{"write", "chmod", "sync", "close"} {
+		t.Run(step, func(t *testing.T) {
+			dir := t.TempDir()
+			target := filepath.Join(dir, ".zshrc")
+			if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var fake *failingTemp
+			orig := createTemp
+			t.Cleanup(func() { createTemp = orig })
+			createTemp = func(dir, pattern string) (tempFile, error) {
+				f, err := os.CreateTemp(dir, pattern)
+				if err != nil {
+					return nil, err
+				}
+				fake = &failingTemp{File: f, failAt: step}
+				return fake, nil
+			}
+
+			err := WriteFileAtomic(target, []byte("new\n"), 0o644)
+			if !errors.Is(err, errInjected) {
+				t.Fatalf("err = %v, want the injected %s failure", err, step)
+			}
+			if got := readString(t, target); got != "old\n" {
+				t.Errorf("old file changed to %q", got)
+			}
+			if !fake.closed {
+				t.Error("temp file was never closed (leaks a file handle)")
+			}
+			noTempLitter(t, dir)
+		})
 	}
 }

@@ -13,6 +13,25 @@ func Hash(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
+// tempFile is the part of *os.File that WriteFileAtomic uses. Tests swap
+// createTemp for one that fails mid-write, a failure a real disk rarely
+// produces on demand.
+type tempFile interface {
+	Write([]byte) (int, error)
+	Chmod(os.FileMode) error
+	Sync() error
+	Close() error
+	Name() string
+}
+
+var createTemp = func(dir, pattern string) (tempFile, error) {
+	f, err := os.CreateTemp(dir, pattern)
+	if err != nil {
+		return nil, err // a bare nil: a nil *os.File would be a non-nil tempFile
+	}
+	return f, nil
+}
+
 // WriteFileAtomic writes data to path via a temp file + fsync + rename, so
 // neither a crash nor a power cut leaves a half-written or empty file: the
 // data reaches disk before the rename makes it visible. Creates missing
@@ -30,7 +49,7 @@ func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".strata-tmp-*")
+	tmp, err := createTemp(dir, ".strata-tmp-*")
 	if err != nil {
 		return err
 	}
